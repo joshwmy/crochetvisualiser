@@ -24,6 +24,11 @@ from pydantic import ValidationError as PydanticValidationError
 from crochet_reconstruction.domain.errors import CrochetReconstructionError
 from crochet_reconstruction.domain.pattern import ProjectInput
 from crochet_reconstruction.engine.compiler import compile_pattern
+from crochet_reconstruction.geometry.export import write_geometry_json
+from crochet_reconstruction.geometry.layout import build_geometry
+from crochet_reconstruction.graph.builder import build_stitch_graph
+from crochet_reconstruction.graph.errors import StitchGraphError
+from crochet_reconstruction.graph.validation import validate_graph
 from crochet_reconstruction.physical_validation.evaluation_report import generate_evaluation_report
 from crochet_reconstruction.physical_validation.review_pack import generate_expert_review_pack
 from crochet_reconstruction.physical_validation.trial_matrix import (
@@ -90,6 +95,64 @@ def _generate(input_path: Path, output_dir: Path) -> int:
     return 0
 
 
+def _generate_geometry(input_path: Path, output_dir: Path) -> int:
+    """Compile -> validate -> stitch graph -> validate -> geometry -> JSON fixture.
+
+    Mirrors ``_generate``'s exit-code contract: 0 on success, 1 if the
+    pattern has a fatal validation result (no graph/geometry is built at
+    all — a validation failure must prevent rendering), 2 on malformed
+    input, 3 if the pattern cannot be compiled, 4 if a compiled, validated
+    pattern still fails to produce a valid stitch graph (a defensive,
+    should-never-happen path — see ``graph.errors``).
+    """
+    try:
+        raw = json.loads(input_path.read_text(encoding="utf-8-sig"))
+    except OSError as exc:
+        print(f"error: could not read input file {input_path}: {exc}", file=sys.stderr)
+        return 2
+    except json.JSONDecodeError as exc:
+        print(f"error: input file {input_path} is not valid JSON: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        project_input = ProjectInput.model_validate(raw)
+    except PydanticValidationError as exc:
+        print("error: input failed validation and was not repaired:", file=sys.stderr)
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
+        pattern = compile_pattern(project_input)
+    except CrochetReconstructionError as exc:
+        print(f"error: pattern could not be compiled: {exc}", file=sys.stderr)
+        return 3
+
+    assert pattern.validation is not None
+    if pattern.validation.has_fatal:
+        print(
+            "error: pattern has fatal validation results; no stitch graph or geometry was built.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        graph = build_stitch_graph(pattern)
+        validate_graph(graph)
+    except StitchGraphError as exc:
+        print(f"error: stitch graph could not be built or validated: {exc}", file=sys.stderr)
+        return 4
+
+    geometry = build_geometry(pattern, graph)
+    output_path = write_geometry_json(geometry, output_dir / "geometry.json")
+
+    print(f"stitches: {len(geometry.stitches)}")
+    print(f"pattern fingerprint: {geometry.pattern_fingerprint}")
+    print(f"graph fingerprint: {geometry.graph_fingerprint}")
+    print(f"geometry fingerprint: {geometry.geometry_fingerprint}")
+    print(f"wrote {output_path}")
+    return 0
+
+
 def _expert_review_pack(output_dir: Path) -> int:
     rows = generate_expert_review_pack(output_dir)
     print(f"generated {len(rows)} trials under {output_dir}")
@@ -135,6 +198,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     generate.add_argument(
         "--output", required=True, type=Path, help="Directory to write outputs into."
+    )
+
+    generate_geometry = subparsers.add_parser(
+        "generate-geometry",
+        help="Compile a pattern, build its stitch graph, and export renderer-ready geometry JSON.",
+    )
+    generate_geometry.add_argument(
+        "--input", required=True, type=Path, help="Path to a ProjectInput JSON file."
+    )
+    generate_geometry.add_argument(
+        "--output", required=True, type=Path, help="Directory to write geometry.json into."
     )
 
     review_pack = subparsers.add_parser(
@@ -324,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "generate":
         return _generate(args.input, args.output)
+    if args.command == "generate-geometry":
+        return _generate_geometry(args.input, args.output)
     if args.command == "expert-review-pack":
         return _expert_review_pack(args.output)
     if args.command == "evaluate":

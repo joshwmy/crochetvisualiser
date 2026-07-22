@@ -1,0 +1,177 @@
+:root {
+  color-scheme: dark;
+  --bg: #11151c;
+  --panel-bg: #171c26;
+  --text: #e8ecf3;
+  --muted: #9aa4b5;
+  --accent: #5fb0e6;
+  --border: #2a3040;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: 100vh;
+  width: 100vw;
+}
+
+#viewport {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#viewer-error {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  right: 340px;
+  background: #4a1f1f;
+  color: #ffdede;
+  border: 1px solid #a04040;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+#panel {
+  overflow-y: auto;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--border);
+  padding: 1rem;
+}
+
+#panel h1 {
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
+}
+
+#panel section {
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 0;
+}
+
+#panel h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+select,
+button,
+input[type="range"] {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+button {
+  background: #232a38;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2a3346;
+}
+
+button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.button-row button {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+dl {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+dt {
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+#component-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+#component-toggles input {
+  width: auto;
+  margin: 0;
+}
+
+/* Accessibility: visible focus for all interactive controls, never relying
+   on colour alone (selection also gets a wireframe marker in the 3D scene,
+   see selection/highlight.ts). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60vh 1fr;
+  }
+  #panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
