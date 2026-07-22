@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "DiagnosticCode": {
+      "enum": [
+        "INVALID_SYNTAX",
+        "UNSUPPORTED_SYNTAX",
+        "AMBIGUOUS_SYNTAX",
+        "UNKNOWN_ABBREVIATION",
+        "MISSING_FOUNDATION",
+        "INVALID_RANGE",
+        "INVALID_REPEAT",
+        "STITCH_COUNT_MISMATCH",
+        "INSUFFICIENT_PARENT_STITCHES",
+        "INVALID_INCREASE",
+        "INVALID_DECREASE",
+        "GRAPH_VALIDATION_FAILURE",
+        "GEOMETRY_GENERATION_FAILURE",
+        "INTERNAL_SERVER_FAILURE",
+        "EMPTY_INPUT",
+        "INPUT_TOO_LARGE",
+        "INVALID_TERMINOLOGY",
+        "ASSUMPTION_APPLIED"
+      ],
+      "title": "DiagnosticCode",
+      "type": "string"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagnostic.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One structured parser/compiler diagnostic.\n\nOrdering is always: the order diagnostics were produced during a single\ndeterministic left-to-right pass over the source (section by section,\ntop to bottom) \u2014 never re-sorted afterward, so identical input always\nproduces an identically-ordered diagnostics list.",
+  "properties": {
+    "actual": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actual"
+    },
+    "code": {
+      "$ref": "#/$defs/DiagnosticCode"
+    },
+    "column": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Column"
+    },
+    "expected": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected"
+    },
+    "line": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Line"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "section": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Section"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "source_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Text"
+    }
+  },
+  "required": [
+    "severity",
+    "code",
+    "message"
+  ],
+  "title": "Diagnostic",
+  "type": "object",
+  "version": "1.0.0"
+}

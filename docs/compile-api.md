@@ -111,9 +111,13 @@ uvicorn crochet_reconstruction.api.app:create_app --factory --reload --port 8000
 
 ## JSON Schema
 
-`CompileRequest`/`CompileResponse`/`Diagnostic` are Pydantic v2 models;
-their JSON Schema is available on demand via
-`Model.model_json_schema()` — not committed as a static file, since
-Pydantic generates it deterministically from the models themselves and a
-committed copy could silently drift. See
-`docs/open-source-resource-adoption.md`'s JSON Schema entry.
+`CompileRequest`/`CompileResponse`/`Diagnostic` (plus `StitchGraph` and
+`GeometryDocument`, which `CompileResponse` embeds) are Pydantic v2 models.
+Their JSON Schema is now committed as versioned files under `schemas/`,
+generated reproducibly by `crochet_reconstruction.api.schema_export` and
+match-tested (`tests/test_schema_export.py`) so a committed copy can never
+silently drift from the models it describes. See
+`docs/schema-artifacts.md` for the generation command and compatibility
+policy, and `docs/open-source-resource-adoption.md`'s JSON Schema entry for
+why this differs from the written-pattern slice's original "generate on
+demand, don't commit" decision (this completion audit raised the bar).

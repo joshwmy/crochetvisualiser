@@ -1,0 +1,337 @@
+{
+  "$defs": {
+    "ComponentKind": {
+      "description": "Beanie components (``CROWN``/``BODY``/``BRIM``) plus ``PIECE``.\n\n``PIECE`` is one undifferentiated worked piece with no crown/body/brim\ndistinction, used by the written-pattern parser (``parsing/written/``)\nfor generic round-based patterns (amigurumi, swatches) that aren't\nbeanies. The rotational geometry layout treats ``PIECE`` the same as\n``BODY`` (a flat vertical stack of rounds, no dome curvature) \u2014 a known,\ndocumented approximation for shapes like a sphere, where a real\ncrown-and-decrease-symmetric dome treatment would render more\naccurately. See docs/known-limitations.md.",
+      "enum": [
+        "crown",
+        "body",
+        "brim",
+        "piece"
+      ],
+      "title": "ComponentKind",
+      "type": "string"
+    },
+    "Edge": {
+      "properties": {
+        "edge_id": {
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "edge_type": {
+          "enum": [
+            "yarn_sequence",
+            "insertion",
+            "horizontal_neighbor",
+            "round_closure"
+          ],
+          "title": "Edge Type",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "edge_type",
+        "source_id",
+        "target_id"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "LoopPlacement": {
+      "description": "Which loop(s) a stitch is worked into.",
+      "enum": [
+        "both",
+        "front_loop_only",
+        "back_loop_only"
+      ],
+      "title": "LoopPlacement",
+      "type": "string"
+    },
+    "StitchFamily": {
+      "description": "Supported body stitches.\n\n``SC``/``HDC`` are the Phase 1 beanie engine's vocabulary (see\n``engine/crown.py``/``engine/body.py``). ``DC`` was added for the\nwritten-pattern parser (``parsing/written/``), which needs it for its\ndocumented abbreviation list; the beanie engine still never emits it.",
+      "enum": [
+        "sc",
+        "hdc",
+        "dc"
+      ],
+      "title": "StitchFamily",
+      "type": "string"
+    },
+    "StitchNode": {
+      "description": "One individually identified worked stitch.",
+      "properties": {
+        "colour_id": {
+          "default": "main",
+          "title": "Colour Id",
+          "type": "string"
+        },
+        "component_kind": {
+          "$ref": "#/$defs/ComponentKind"
+        },
+        "decrease_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decrease Group Id"
+        },
+        "diagram_symbol_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diagram Symbol Reference"
+        },
+        "increase_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Increase Group Id"
+        },
+        "into_ring": {
+          "default": false,
+          "description": "True for round-1 stitches worked into a magic ring.",
+          "title": "Into Ring",
+          "type": "boolean"
+        },
+        "is_decrease": {
+          "default": false,
+          "title": "Is Decrease",
+          "type": "boolean"
+        },
+        "is_increase": {
+          "default": false,
+          "title": "Is Increase",
+          "type": "boolean"
+        },
+        "loop_placement": {
+          "$ref": "#/$defs/LoopPlacement"
+        },
+        "parent_stitch_ids": {
+          "description": "Insertion targets: previous-round stitch IDs this stitch is worked into. Empty only for a magic-ring starting stitch, whose target is the ring itself, not a prior stitch \u2014 see `into_ring`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Stitch Ids",
+          "type": "array"
+        },
+        "position_in_round": {
+          "description": "0-indexed position within the round.",
+          "minimum": 0,
+          "title": "Position In Round",
+          "type": "integer"
+        },
+        "repeat_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID of the RepeatOp iteration this stitch belongs to, if any.",
+          "title": "Repeat Group Id"
+        },
+        "round_number": {
+          "minimum": 1,
+          "title": "Round Number",
+          "type": "integer"
+        },
+        "sequence_index": {
+          "description": "0-indexed global working order.",
+          "minimum": 0,
+          "title": "Sequence Index",
+          "type": "integer"
+        },
+        "source_reference": {
+          "description": "e.g. \"crown round 3 operation 2 (repeat 4/8)\".",
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "stitch_height_category": {
+          "enum": [
+            "short",
+            "medium",
+            "tall"
+          ],
+          "title": "Stitch Height Category",
+          "type": "string"
+        },
+        "stitch_id": {
+          "description": "Stable ID, e.g. \"body-r04-s018\".",
+          "title": "Stitch Id",
+          "type": "string"
+        },
+        "stitch_type": {
+          "$ref": "#/$defs/StitchFamily"
+        },
+        "target_rule": {
+          "default": "deterministic_left_to_right",
+          "enum": [
+            "explicit",
+            "deterministic_left_to_right"
+          ],
+          "title": "Target Rule",
+          "type": "string"
+        },
+        "yarn_id": {
+          "default": "main",
+          "description": "Phase 1 supports solid-colour single yarn.",
+          "title": "Yarn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stitch_id",
+        "component_kind",
+        "round_number",
+        "position_in_round",
+        "sequence_index",
+        "stitch_type",
+        "stitch_height_category",
+        "loop_placement",
+        "source_reference"
+      ],
+      "title": "StitchNode",
+      "type": "object"
+    },
+    "YarnSegment": {
+      "description": "A simplified structural piece of yarn path owned by one stitch.\n\nThe first slice models only a single ``connector`` segment per\nyarn-sequence edge (previous stitch -> this stitch). Richer semantic\nsegmentation (entry/lower-loop/post/upper-loop/exit) is deferred to a\nlater slice, per the data model note in the geometry/rendering spec \u2014\nthis type is intentionally narrow, not final.",
+      "properties": {
+        "from_stitch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Stitch Id"
+        },
+        "owning_stitch_id": {
+          "title": "Owning Stitch Id",
+          "type": "string"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "segment_type": {
+          "const": "connector",
+          "default": "connector",
+          "title": "Segment Type",
+          "type": "string"
+        },
+        "to_stitch_id": {
+          "title": "To Stitch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "owning_stitch_id",
+        "to_stitch_id"
+      ],
+      "title": "YarnSegment",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/stitch_graph.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The complete deterministic stitch graph for one compiled pattern.",
+  "properties": {
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/Edge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fingerprint"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/StitchNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "pattern_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Pattern Fingerprint"
+    },
+    "schema_version": {
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "yarn_segments": {
+      "items": {
+        "$ref": "#/$defs/YarnSegment"
+      },
+      "title": "Yarn Segments",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pattern_fingerprint",
+    "nodes",
+    "edges",
+    "yarn_segments"
+  ],
+  "title": "StitchGraph",
+  "type": "object",
+  "version": "0.1.0"
+}

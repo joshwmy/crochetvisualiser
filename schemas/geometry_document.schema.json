@@ -1,0 +1,482 @@
+{
+  "$defs": {
+    "GaugeAssumptions": {
+      "properties": {
+        "rounds_per_cm": {
+          "title": "Rounds Per Cm",
+          "type": "number"
+        },
+        "stitches_per_cm": {
+          "title": "Stitches Per Cm",
+          "type": "number"
+        },
+        "yarn_diameter_cm": {
+          "title": "Yarn Diameter Cm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stitches_per_cm",
+        "rounds_per_cm",
+        "yarn_diameter_cm"
+      ],
+      "title": "GaugeAssumptions",
+      "type": "object"
+    },
+    "GeometryBounds": {
+      "properties": {
+        "max": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Max",
+          "type": "array"
+        },
+        "min": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Min",
+          "type": "array"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "GeometryBounds",
+      "type": "object"
+    },
+    "GeometryEdge": {
+      "description": "A graph edge carried through for graph-mode rendering.",
+      "properties": {
+        "edge_id": {
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "edge_type": {
+          "title": "Edge Type",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "edge_type",
+        "source_id",
+        "target_id"
+      ],
+      "title": "GeometryEdge",
+      "type": "object"
+    },
+    "GeometryMeasurements": {
+      "description": "Dimensions derived from the placed geometry \u2014 always approximate.\n\nThese are estimates from analytical stitch placement, not measurements\nof a physical object; the viewer must label them as estimated wherever\ndisplayed (see docs/geometry-transfer-spec.md, \"Estimated, not measured\").",
+      "properties": {
+        "max_circumference_cm": {
+          "title": "Max Circumference Cm",
+          "type": "number"
+        },
+        "max_radius_cm": {
+          "title": "Max Radius Cm",
+          "type": "number"
+        },
+        "overall_height_cm": {
+          "title": "Overall Height Cm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "overall_height_cm",
+        "max_radius_cm",
+        "max_circumference_cm"
+      ],
+      "title": "GeometryMeasurements",
+      "type": "object"
+    },
+    "LoopPlacement": {
+      "description": "Which loop(s) a stitch is worked into.",
+      "enum": [
+        "both",
+        "front_loop_only",
+        "back_loop_only"
+      ],
+      "title": "LoopPlacement",
+      "type": "string"
+    },
+    "StitchFamily": {
+      "description": "Supported body stitches.\n\n``SC``/``HDC`` are the Phase 1 beanie engine's vocabulary (see\n``engine/crown.py``/``engine/body.py``). ``DC`` was added for the\nwritten-pattern parser (``parsing/written/``), which needs it for its\ndocumented abbreviation list; the beanie engine still never emits it.",
+      "enum": [
+        "sc",
+        "hdc",
+        "dc"
+      ],
+      "title": "StitchFamily",
+      "type": "string"
+    },
+    "StitchGeometry": {
+      "description": "Position, orientation, and metadata for one stitch, ready to render.",
+      "properties": {
+        "binormal": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Binormal",
+          "type": "array"
+        },
+        "colour_id": {
+          "title": "Colour Id",
+          "type": "string"
+        },
+        "component_id": {
+          "description": "Currently the component kind, e.g. 'crown'.",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "is_decrease": {
+          "title": "Is Decrease",
+          "type": "boolean"
+        },
+        "is_increase": {
+          "title": "Is Increase",
+          "type": "boolean"
+        },
+        "loop_placement": {
+          "$ref": "#/$defs/LoopPlacement"
+        },
+        "normal": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normal",
+          "type": "array"
+        },
+        "orientation": {
+          "description": "Unit quaternion (x, y, z, w).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Orientation",
+          "type": "array"
+        },
+        "parent_stitch_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Stitch Ids",
+          "type": "array"
+        },
+        "position": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "round_index": {
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "scale": {
+          "default": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "sequence_index": {
+          "title": "Sequence Index",
+          "type": "integer"
+        },
+        "source_reference": {
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "stitch_id": {
+          "title": "Stitch Id",
+          "type": "string"
+        },
+        "stitch_type": {
+          "$ref": "#/$defs/StitchFamily"
+        },
+        "tangent": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Tangent",
+          "type": "array"
+        },
+        "yarn_id": {
+          "title": "Yarn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stitch_id",
+        "component_id",
+        "stitch_type",
+        "round_index",
+        "sequence_index",
+        "position",
+        "orientation",
+        "tangent",
+        "normal",
+        "binormal",
+        "loop_placement",
+        "colour_id",
+        "yarn_id",
+        "parent_stitch_ids",
+        "is_increase",
+        "is_decrease",
+        "source_reference"
+      ],
+      "title": "StitchGeometry",
+      "type": "object"
+    },
+    "YarnSegmentGeometry": {
+      "description": "Simplified curve for one yarn segment: a straight line between two stitches.\n\nFirst-slice simplification: two control points (start, end), not a full\nCatmull-Rom/Bezier centreline. See package docstring for what a later\nprocedural-yarn slice would add here without changing the schema shape\n(more control points, same record type).",
+      "properties": {
+        "control_points": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Control Points",
+          "type": "array"
+        },
+        "from_stitch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Stitch Id"
+        },
+        "owning_stitch_id": {
+          "title": "Owning Stitch Id",
+          "type": "string"
+        },
+        "radius_cm": {
+          "exclusiveMinimum": 0,
+          "title": "Radius Cm",
+          "type": "number"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "segment_type": {
+          "default": "connector",
+          "title": "Segment Type",
+          "type": "string"
+        },
+        "to_stitch_id": {
+          "title": "To Stitch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "owning_stitch_id",
+        "from_stitch_id",
+        "to_stitch_id",
+        "control_points",
+        "radius_cm"
+      ],
+      "title": "YarnSegmentGeometry",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/geometry_document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The complete renderer-ready geometry payload for one compiled pattern.",
+  "properties": {
+    "bounds": {
+      "$ref": "#/$defs/GeometryBounds"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/GeometryEdge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "gauge": {
+      "$ref": "#/$defs/GaugeAssumptions"
+    },
+    "geometry_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Geometry Fingerprint"
+    },
+    "graph_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Graph Fingerprint"
+    },
+    "measurements": {
+      "$ref": "#/$defs/GeometryMeasurements"
+    },
+    "pattern_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Pattern Fingerprint"
+    },
+    "schema_version": {
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stitches": {
+      "items": {
+        "$ref": "#/$defs/StitchGeometry"
+      },
+      "title": "Stitches",
+      "type": "array"
+    },
+    "units": {
+      "default": "cm",
+      "title": "Units",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "yarn_segments": {
+      "items": {
+        "$ref": "#/$defs/YarnSegmentGeometry"
+      },
+      "title": "Yarn Segments",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pattern_fingerprint",
+    "graph_fingerprint",
+    "gauge",
+    "stitches",
+    "yarn_segments",
+    "edges",
+    "bounds",
+    "measurements"
+  ],
+  "title": "GeometryDocument",
+  "type": "object",
+  "version": "0.1.0"
+}

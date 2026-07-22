@@ -1,0 +1,41 @@
+{
+  "$defs": {
+    "CompileOptions": {
+      "properties": {
+        "strict": {
+          "default": true,
+          "title": "Strict",
+          "type": "boolean"
+        }
+      },
+      "title": "CompileOptions",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/compile_request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "options": {
+      "$ref": "#/$defs/CompileOptions",
+      "default": {
+        "strict": true
+      }
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "terminology": {
+      "const": "US",
+      "default": "US",
+      "title": "Terminology",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "title": "CompileRequest",
+  "type": "object",
+  "version": "1.0.0"
+}
