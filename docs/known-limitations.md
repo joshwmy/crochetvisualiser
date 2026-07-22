@@ -35,35 +35,63 @@ later, one input route) first — none were discovered too late.
 - **No persistence.** The API never writes submitted patterns to disk and
   has no database; closing the tab loses the current pattern text (the
   textarea itself has no autosave).
-- **Single clipping plane, no measurement/annotation tools** — unchanged
-  from the previous milestone; this slice didn't touch viewer features
-  beyond the compile/load/dispose path.
+- **Single clipping plane, no annotation tools.** Point-to-point measurement
+  is now implemented (`docs/measurement-tools.md`) — the "no measurement"
+  half of this limitation is resolved; free-text annotations remain
+  unbuilt (`annotations/` is still an empty placeholder directory).
 - **`options.strict` has no effect yet** — accepted by the API and typed in
   the schema, reserved for a future stricter-diagnostics mode, not silently
   dropped but also not yet implemented.
-- **E2E coverage is one workflow test**, not a full interaction matrix —
-  `viewer/e2e/compile-workflow.spec.ts` covers the brief's specific 11-step
-  scenario; camera/clipping/animation interactions during a live compile
-  session are covered by Vitest unit tests and the previous milestone's
-  manual verification, not by Playwright.
+- **E2E coverage is two workflow tests**, not a full interaction matrix —
+  `viewer/e2e/compile-workflow.spec.ts` covers the original 11-step compile
+  scenario plus a second 12-step scenario (yarn mode, X-ray, clipping,
+  measurement, quality change, recompile-disposal — see
+  `docs/scientific-viewer-spec.md`'s interaction pipeline diagram); some
+  camera-preset and animation-timeline interactions during a live compile
+  session are still covered only by Vitest unit tests and manual
+  verification, not by Playwright.
 
 ## Geometry accuracy
 
-- **Stitch dimensions are not stitch-type-specific.** `sc` and `hdc` render
-  at the same capsule size today; only a coarse `short`/`medium` height
-  *category* exists on the graph node, unused by the geometry layer yet.
-  Deferred to the "stitch-specific geometry strategies" slice.
+- **Stitch dimensions are stitch-type-specific in yarn mode only.**
+  `geometry/stitch_paths/` (see `docs/stitch-geometry-strategies.md`) gives
+  sc/hdc/dc visibly different post height and wrap count in yarn mode.
+  **Structural mode still renders every stitch at one capsule size**
+  regardless of `stitch_type` — this was a deliberate choice to keep
+  structural mode as a fast, uniform overview (see
+  `docs/scientific-viewer-spec.md`'s "Known simplification, structural mode
+  only"), not an oversight.
+- **Stitch position itself is still not stitch-type-specific.** Yarn mode's
+  per-type visual differences (post height, wrap count) are drawn as a
+  locally-varying curve between a visually-lowered "attach" point and the
+  stitch's real, backend-computed position — the position itself still
+  comes from the same uniform-row-height layout regardless of `sc`/`hdc`/
+  `dc`. A `dc`-heavy round is not spaced any further apart than an
+  `sc`-heavy one of the same stitch count. This is a real geometric
+  simplification, not resolved by the new yarn-mode visuals, which are
+  cosmetic curve shape only.
 - **Crown dome shape is a visual heuristic** (hemispherical cap sized at
   60% of crown radius), not derived from the actual increase schedule's
   curvature. It looks like a crown; it is not a claim about the real one.
 - **No constraint relaxation.** Positions come from closed-form trigonometry
   only — no spring/curve-length constraints, no collision avoidance, no
-  position-based dynamics. The data model doesn't preclude adding this
-  later as a refinement pass over the same positions.
+  position-based dynamics. Yarn-mode tubes can visibly self-intersect at
+  tight increase/decrease points for exactly this reason (no collision
+  avoidance pass runs over the generated tube geometry) — this is a known,
+  unfixed visual artifact, not something the strategy system attempts to
+  prevent. The data model doesn't preclude adding a relaxation pass later
+  as a refinement over the same positions.
 - **Yarn diameter is a visual default** (half a stitch width from gauge),
   not a measured or user-entered yarn property.
+- **Loop placement (front/back loop only) is an approximate lateral offset**
+  in yarn mode, not an anatomically modelled loop — see
+  `docs/stitch-geometry-strategies.md`'s sc/hdc/dc section. Each such stitch
+  carries a warning to this effect, surfaced in `#yarn-warnings`, rather
+  than silently rendering as if it were exact.
 - All dimensional outputs are **estimates**, and are labelled as such in the
-  viewer — never presented as measurements of a physical object.
+  viewer — never presented as measurements of a physical object. This now
+  explicitly includes the measurement tool's own readings (labelled
+  `"cm (approx.)"` in the UI) — see `docs/measurement-tools.md`.
 
 ## Category and vocabulary
 
@@ -92,17 +120,35 @@ later, one input route) first — none were discovered too late.
 
 ## Viewer
 
-- **Visualisation modes**: only structural and basic yarn are implemented.
-  Graph, symbol, and X-ray modes are unimplemented (all explicitly listed
-  as second-vertical-slice work in the product roadmap).
-- **No measurement or annotation tools yet** — both directories exist as
-  placeholders; both are second-slice items per the roadmap.
-- **No level-of-detail system** — one fixed geometry resolution regardless
-  of camera distance or selection state.
+- **Visualisation modes**: structural, crochet-specific yarn (procedural
+  per-stitch geometry, not the earlier straight-tube placeholder), X-ray,
+  and a one-hop graph overlay are all implemented. A full symbol-chart mode
+  remains unimplemented — out of scope for this slice (chart rendering is a
+  distinct pipeline stage, see `docs/open-source-resource-adoption.md`'s
+  "Crochet Charts" entry).
+- **Measurement tools are implemented** (point-to-point / stitch-to-stitch
+  distance; see `docs/measurement-tools.md`), including disposal on
+  recompile. **Free-text annotations remain unbuilt** —
+  `annotations/` is still an empty placeholder directory.
+- **No level-of-detail system** — one fixed geometry resolution per quality
+  preset, regardless of camera distance or selection state. Quality presets
+  (`docs/yarn-material-and-lighting.md`) are a coarse, user-chosen global
+  knob, not an automatic LOD system.
+- **Yarn-mode tube meshes can self-intersect** at tight increase/decrease
+  points — no collision-avoidance or relaxation pass runs over the
+  generated geometry (see "Geometry accuracy" above).
+- **No raycast-time benchmark for yarn mode** — only build time and
+  triangle count are measured (`docs/yarn-material-and-lighting.md`); if
+  picking latency is ever reported as a problem, `three-mesh-bvh` is the
+  natural next step (see `docs/open-source-resource-adoption.md`'s
+  re-evaluation).
 - **Single clipping plane**, not multiple.
-- **Production bundle is one ~534 KB chunk** (mostly Three.js). Not
-  code-split; fine for a local single-page tool, would want
-  `manualChunks`/dynamic import if the viewer grows.
+- **Production bundle is now one ~562 KB chunk / 144 KB gzipped**
+  (`npm run build`, re-measured this slice; was ~534 KB/136 KB before the
+  new materials/geometry/measurement/selection code). Still one chunk, not
+  code-split; the ~28 KB/8 KB gzipped growth is this slice's new code, not
+  a new dependency (no runtime dependency was added — see
+  `docs/open-source-resource-adoption.md`).
 - **Desktop-first.** A responsive CSS breakpoint exists, but touch-specific
   interaction (pinch-zoom, touch-drag orbit) has not been tuned or tested.
 

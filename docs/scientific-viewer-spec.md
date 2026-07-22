@@ -10,22 +10,114 @@ state-management framework — plain TypeScript with a small pub-sub `Store`
 
 ```
 viewer/src/
-├── app/App.ts          orchestrator: owns scene/camera/renderer, wires state -> visuals
-├── scene/scene.ts       lights, background, grid/axes helpers
-├── camera/camera.ts     CameraRig: perspective+orthographic, OrbitControls, view presets, focus
-├── rendering/renderer.ts  WebGLRenderer setup, colour management, context-loss handling
-├── geometry/            load.ts (fetch+validate), build_meshes.ts (structural), build_yarn.ts (basic yarn)
-├── selection/           picking.ts (raycast -> stitch_id), highlight.ts (colour-independent marker)
-├── animation/           construction.ts (sequence-driven timeline)
-├── clipping/            clipping.ts (bounds-relative clipping plane)
-├── state/store.ts        plain pub-sub ViewerState
-├── types/geometry.ts     mirrors geometry/models.py field-for-field
-└── main.ts               DOM wiring for the control panel
+├── app/App.ts             orchestrator: owns scene/camera/renderer, wires state -> visuals,
+│                           picking dispatch (structural vs. yarn), measurement click flow
+├── scene/scene.ts          lights, background, grid/axes helpers, 3 lighting presets
+├── camera/camera.ts        CameraRig: perspective+orthographic, OrbitControls, view presets, focus
+├── rendering/renderer.ts   WebGLRenderer setup, colour management, context-loss handling
+├── geometry/
+│   ├── load.ts             fetch + validate GeometryDocument
+│   ├── build_meshes.ts     structural mode: one InstancedMesh per component
+│   ├── build_yarn_paths.ts yarn mode: per-stitch strategy dispatch -> tube geometry -> merge
+│   ├── parallel_transport_tube.ts  rotation-minimizing frames + tube mesh builder
+│   └── stitch_paths/       StitchPathStrategy system — see docs/stitch-geometry-strategies.md
+├── materials/yarn_material.ts   MeshPhysicalMaterial preset, semantic colors, x-ray opacity
+├── selection/
+│   ├── picking.ts          structural raycast -> instanceId -> stitch_id
+│   ├── highlight.ts        colour-independent selection marker (wireframe torus)
+│   └── graph_overlay.ts    one-hop StitchGraph edge overlay for the selected stitch
+├── measurement/measurement.ts   point-to-point / round-circumference distance — see docs/measurement-tools.md
+├── animation/construction.ts    sequence-driven construction timeline
+├── clipping/clipping.ts    bounds-relative clipping plane (THREE.Plane + material.clippingPlanes)
+├── state/store.ts          plain pub-sub ViewerState (includes quality, xray, measurements, clipping)
+├── types/geometry.ts       mirrors geometry/models.py field-for-field
+└── main.ts                 DOM wiring for the control panel
 ```
 
-`measurement/` and `annotations/` directories exist but are intentionally
-empty in this slice — both are explicitly second-vertical-slice work per
-the product roadmap, not omissions.
+`annotations/` remains intentionally empty — free-text annotations (as
+opposed to structured measurements, which are now implemented) are still
+explicitly future work.
+
+## Pipeline diagrams
+
+### 1. Data pipeline: pattern text to rendered scene
+
+```
+Written pattern text
+        |
+        v   Lark grammar (parsing/written/grammar.lark)
+Parsed syntax tree
+        |
+        v   semantic conversion (parsing/written/parser.py)
+Pattern (domain IR)  <-------------------- structured JSON input (alternate route)
+        |
+        v   graph/builder.py
+StitchGraph (nodes, edges, fingerprinted)
+        |
+        v   geometry/layout.py, rotational_rounds.py
+GeometryDocument (positions, orientations, radius; fingerprinted)
+        |
+        +---------------------------------------+
+        |                                        |
+        v  structural mode                       v  yarn mode
+  build_meshes.ts                          stitch_paths/ (per-stitch strategy
+  InstancedMesh per component               dispatch — see stitch-geometry-
+        |                                    strategies.md)
+        |                                          |
+        |                                          v
+        |                                    StitchPathResult
+        |                                    (segments, roles, warnings)
+        |                                          |
+        |                                          v  parallel_transport_tube.ts
+        |                                    tube geometry per segment,
+        |                                    swept at the active quality preset
+        |                                          |
+        |                                          v
+        |                                    merged mesh per component
+        |                                          |
+        +--------------------+--------------------+
+                              v
+                    THREE.Scene: materials (yarn_material.ts),
+                    lighting preset (scene.ts), clipping planes
+                    (clipping.ts), x-ray opacity (applyYarnMaterialState)
+                              |
+                              v
+                    WebGLRenderer -> canvas
+```
+
+### 2. Interaction pipeline: click to inspection/measurement
+
+```
+pointer click on canvas
+        |
+        v
+App.pickStitch()
+   structural -> Picker.pick(): raycast InstancedMesh, read instance.instanceId
+   yarn       -> App.pickYarn(): raycast merged component mesh, stitchIdForFace()
+        |
+        v
+stitchId (or null if the raycast missed)
+        |
+        +-- measurement mode inactive --> store.set({ selectedStitchId: stitchId })
+        |
+        +-- measurement mode active
+                 |
+                 +-- no stitch pending yet --> store.set({
+                 |         pendingMeasurementStitchId: stitchId,
+                 |         selectedStitchId: stitchId })       (inspector still updates)
+                 |
+                 +-- a different stitch is pending --> measureDistance(doc, pending, stitchId)
+                           store.set({ measurements: [...prev, result],
+                                       pendingMeasurementStitchId: null })
+        |
+        v
+store notifies subscribers
+        |
+        +--> highlighter.select(...)          wireframe torus at the selected stitch
+        +--> wireInspector() DOM update        #inspector-content <dl> (type, parents, ...)
+        +--> graph_overlay rebuild (if on)     one-hop StitchGraph edges from the selection
+        +--> measurement list + line rebuild   #measurement-list <li> + dashed THREE.Line
+```
 
 ## Semantic identity, never inferred from position
 
@@ -37,25 +129,44 @@ raycasts against the instanced meshes and reads `intersection.instanceId`
 back through that same array — the viewer never guesses identity from
 world-space position.
 
-**Known first-slice simplification**: all stitches share one capsule size
-derived from gauge, regardless of `stitch_type` (sc vs hdc render at the
-same size today). Per-stitch-type dimensions are deferred to the
-"stitch-specific geometry strategies" slice (see
-`docs/known-limitations.md`) — this is a placeholder shape, not a claim of
-stitch-accurate rendering.
+**Known simplification, structural mode only**: all stitches share one
+capsule size derived from gauge, regardless of `stitch_type` (sc vs hdc
+render at the same size today) — this is a placeholder shape, not a claim
+of stitch-accurate rendering. The "stitch-specific geometry strategies"
+work this simplification was originally deferred to has since landed, but
+**in yarn mode only** (`geometry/stitch_paths/`, see
+`docs/stitch-geometry-strategies.md`) — sc/hdc/dc do render with visibly
+different post height and wrap count there. Structural mode was left
+unchanged deliberately: it exists specifically as a fast, uniform overview
+representation, and giving it per-stitch-type capsule shapes would blur
+that distinction from yarn mode's detailed rendering without a measured
+need for it.
 
-## Visualisation modes implemented this slice
+## Visualisation modes
 
 - **Structural** (default): instanced capsules, coloured by component, with
-  increase/decrease stitches tinted separately.
-- **Basic yarn**: one straight tube per yarn segment, merged per component
-  via `BufferGeometryUtils.mergeGeometries` for draw-call efficiency. This
-  is explicitly a placeholder — no twist detail, no loop-specific curve
-  shaping, no PBR fibre material. The "realistic yarn" target from the
-  product spec is second-slice work.
+  increase/decrease stitches tinted separately. One fixed capsule size per
+  gauge — still not stitch-type-specific (see "Known first-slice
+  simplification" above; unchanged by the yarn-mode work below, since that
+  work is entirely additive in a separate mode).
+- **Yarn (crochet-specific)**: per-stitch procedural yarn-path geometry —
+  see `docs/stitch-geometry-strategies.md` for the strategy system and
+  `docs/yarn-material-and-lighting.md` for the material/quality-preset
+  details. Replaces the earlier "basic yarn" placeholder (straight tubes
+  with no loop-specific shaping) entirely; the old `build_yarn.ts` module
+  was deleted rather than kept alongside the new `build_yarn_paths.ts`, per
+  this project's "no half-finished/duplicate implementations" convention.
+- **X-ray mode**: caps yarn-material opacity at 0.22 regardless of the
+  opacity slider (`applyYarnMaterialState`), letting internal structure
+  (e.g. a hidden decrease bridge) show through the surrounding yarn.
+- **Graph overlay**: a one-hop `StitchGraph` edge overlay
+  (`selection/graph_overlay.ts`) for the currently selected stitch only —
+  never the whole graph — colour-coded by edge type (insertion, horizontal
+  neighbour, yarn sequence, round closure). Toggled independently of view
+  mode and X-ray.
 
-Graph, symbol, and X-ray modes are **not** implemented this slice (all
-explicitly second-vertical-slice items per the product roadmap).
+Symbol-chart mode remains unimplemented (out of this slice's scope — see
+`docs/known-limitations.md`).
 
 ## Interaction implemented this slice
 
@@ -73,13 +184,30 @@ explicitly second-vertical-slice items per the product roadmap).
   isn't used).
 - Round isolation (dropdown of every `component:round` pair), per-component
   show/hide, global opacity slider, one clipping plane (axis + position +
-  invert).
+  invert) — the clipping plane now applies uniformly to both structural and
+  yarn materials (`applyClippingToMaterials`).
 - Construction animation strictly driven by `sequence_index` — never
   spatial proximity (`animation/construction.ts`): play/pause/restart/step,
   speed control, timeline slider.
 - Hidden stitches use a zero-scale instance matrix rather than removing
   them from the `InstancedMesh` — cheap, and trivially reversible without
   rebuilding geometry.
+- **Measurement mode**: click two distinct stitches to record an
+  approximate point-to-point distance, rendered as a dashed line and listed
+  in a removable list — see `docs/measurement-tools.md` for the full click
+  flow and its interaction with the inspector/selection state.
+- **Quality presets** (`low`/`medium`/`high`): trade yarn-mode tube fidelity
+  for build time; defaults to a stitch-count-based deterministic choice,
+  never an automatic "always high" default — see
+  `docs/yarn-material-and-lighting.md`.
+- **Lighting presets** (`neutral_laboratory`/`soft_studio`/
+  `high_contrast_inspection`): switch the scene's four-light rig in place —
+  see `docs/yarn-material-and-lighting.md`.
+- Inspector panel now also shows geometry strategy name and path roles for
+  the selected stitch (from `StitchPathResult`, yarn mode only) alongside
+  the pre-existing type/component/round/parents/children fields, plus
+  per-stitch geometry warnings surfaced in a dedicated `#yarn-warnings` list
+  rather than silently dropped.
 
 ## Accessibility
 
@@ -109,8 +237,18 @@ fallback re-measures the canvas after the report layout has painted.
 ## Performance (measured, not claimed — `viewer/tests/benchmark.test.ts`)
 
 On the 1640-stitch `adult_beanie_hdc` fixture: structural instanced-scene
-build ≈ 16–60 ms (3 draw calls, ~88,560 triangles), basic-yarn merged-mesh
-build ≈ 155–200 ms (3 merged meshes), geometry-document validation ≈ 3–15
-ms, fixture JSON size ≈ 3.2 MB. Production bundle ≈ 534 KB minified / 136 KB
-gzipped (mostly Three.js itself) — noted as a candidate for code-splitting
-if the viewer grows, not addressed in this slice.
+build ≈ 20–34 ms (3 draw calls, ~88,560 triangles), geometry-document
+validation ≈ 3–4 ms, fixture JSON size ≈ 3.2 MB. Production bundle ≈ 562 KB
+minified / 144 KB gzipped (`npm run build`, re-measured this slice; mostly
+Three.js itself, ~28 KB/8 KB gzipped over the previous milestone's figure
+from this slice's own new code) — still a candidate for code-splitting if
+the viewer grows, not addressed in this slice.
+
+Crochet-specific yarn-mode geometry (per-stitch strategy dispatch +
+parallel-transport tubes, replacing the old straight-tube placeholder) is
+substantially more expensive to build — 684 ms to 1.57 s across the three
+quality presets on the same fixture, still 3 draw calls but 342K–987K
+triangles depending on quality. Full numbers, the quality-preset tradeoff
+table, and why this cost was judged acceptable (adjustable via quality
+presets rather than fixed) are in
+`docs/yarn-material-and-lighting.md`, not duplicated here.

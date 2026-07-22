@@ -83,10 +83,17 @@ cross-language fingerprint-reproduction requirement exists yet.
 
 See `tests/test_canonical_json.py` for executable versions of these.
 
-| Input (Python) | `canonical_json` output | Fingerprint (sha256, truncated) |
+| Input (Python) | `canonical_json` output | Note |
 |---|---|---|
-| `{"b": 1, "a": 2}` | `{"a":2,"b":1}` | `d3626ac3...` (key order does not affect hash) |
-| `{"x": Decimal("1.50")}` | `{"x":"1.50"}` | stable across repeated calls |
+| `{"b": 1, "a": 2}` | `{"a":2,"b":1}` | key order does not affect hash (`d3626ac3...`) |
+| `{"z": {"b": 1, "a": 2}, "a": 1}` | `{"a":1,"z":{"a":2,"b":1}}` | key sorting recurses into nested objects |
+| `[3, 1, 2]` | `[3,1,2]` | array element order is data, never sorted |
+| `{"n": 5}` | `{"n":5}` | plain integers serialize as bare numbers |
+| `{"x": Decimal("1.50")}` | `{"x":"1.50"}` | decimal-like values stay quoted strings via `default=str`, never a bare number — `1.5` and `"1.50"` cannot collide |
+| `{"s": "café"}` | JSON string escaped to backslash-u-00e9 (non-ASCII never appears as raw UTF-8 bytes) | RFC 8785 deviation above; `"café"` and `"cafe"` still escape to distinct output |
+| `{"z": -0}` | `{"z":0}` | Python `int` has no signed zero |
+| `{"z": Decimal("-0")}` | `{"z":"-0"}` | `Decimal` *does* preserve the sign of zero in its string form — `Decimal("-0")` and `Decimal("0")` canonicalize differently |
+| `{"f": 0.1 + 0.2}` | `{"f":0.30000000000000004}` | raw float uses Python `repr` formatting, not RFC 8785's ECMAScript number algorithm — the residual risk above |
 | `{"s": StitchFamily.SC}` | `{"s":"sc"}` | enum serializes as its `.value` |
 
 Key invariant verified by test: **serializing the same logical value twice
