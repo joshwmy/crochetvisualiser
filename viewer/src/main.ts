@@ -1,7 +1,10 @@
 import { App } from "./app/App";
+import { CompileController } from "./app/compile_controller";
 import { loadGeometry, GeometryLoadError } from "./geometry/load";
 import type { ViewPreset } from "./camera/camera";
 import type { ClippingState, ViewerState } from "./state/store";
+import type { CompileState } from "./state/compile_store";
+import { AMIGURUMI_EXAMPLE } from "./examples";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const errorBanner = document.getElementById("viewer-error") as HTMLDivElement;
@@ -51,21 +54,43 @@ async function main(): Promise<void> {
   try {
     app = new App(canvas, doc, jsonSizeBytes);
   } catch (err) {
-    showError(`Failed to initialise the 3D viewer (WebGL may be unavailable): ${(err as Error).message}`);
+    showError(
+      `Failed to initialise the 3D viewer (WebGL may be unavailable): ${(err as Error).message}`,
+    );
     return;
   }
 
-  wireInfoPanel(doc);
+  const controller = new CompileController(app);
+
+  // Test-only hook consumed by e2e/compile-workflow.spec.ts (see
+  // App.getRendererInfo's docstring) — never read by application code.
+  (window as unknown as { __app: App }).__app = app;
+
   wireViewControls(app);
   wireTimeline(app);
-  wireVisibilityControls(app, doc);
   wireClippingControls(app);
   wireInspector(app);
-  wirePerformancePanel(app);
   wireResize(app);
+  wireCompileWorkflow(app, controller);
+  refreshDocDependentUI(app);
 }
 
-function wireInfoPanel(doc: ReturnType<App["getDoc"]>): void {
+/** Re-renders everything derived from `app.getDoc()` — called on startup and
+ * after every successful compile, since a recompile can change the round
+ * list, component list, stitch count, and performance numbers entirely. */
+function refreshDocDependentUI(app: App): void {
+  wireInfoPanel(app);
+  wireVisibilityControls(app);
+  wirePerformancePanel(app);
+  const timeline = app.getTimeline();
+  const slider = qs<HTMLInputElement>("timeline-slider");
+  slider.max = String(timeline.length);
+  slider.value = String(timeline.currentIndex);
+  qs<HTMLSpanElement>("timeline-label").textContent = `${timeline.currentIndex} / ${timeline.length}`;
+}
+
+function wireInfoPanel(app: App): void {
+  const doc = app.getDoc();
   const info = qs<HTMLDListElement>("info");
   const rows: [string, string][] = [
     ["Pattern fingerprint", doc.pattern_fingerprint ?? "n/a"],
@@ -99,22 +124,19 @@ function wireViewControls(app: App): void {
 }
 
 function wireTimeline(app: App): void {
-  const timeline = app.getTimeline();
   const slider = qs<HTMLInputElement>("timeline-slider");
   const label = qs<HTMLSpanElement>("timeline-label");
-  slider.max = String(timeline.length);
-  slider.value = String(timeline.currentIndex);
-  label.textContent = `${timeline.currentIndex} / ${timeline.length}`;
 
   app.getStore().subscribe((state) => {
     slider.value = String(state.animationIndex);
-    label.textContent = `${state.animationIndex} / ${timeline.length}`;
+    label.textContent = `${state.animationIndex} / ${app.getTimeline().length}`;
   });
 
-  slider.addEventListener("input", () => timeline.setIndex(Number(slider.value)));
+  slider.addEventListener("input", () => app.getTimeline().setIndex(Number(slider.value)));
 
   const playButton = qs<HTMLButtonElement>("anim-play");
   playButton.addEventListener("click", () => {
+    const timeline = app.getTimeline();
     if (timeline.isPlaying) {
       timeline.pause();
       playButton.textContent = "Play";
@@ -124,32 +146,27 @@ function wireTimeline(app: App): void {
     }
   });
   qs<HTMLButtonElement>("anim-restart").addEventListener("click", () => {
-    timeline.restart();
+    app.getTimeline().restart();
     playButton.textContent = "Pause";
   });
-  qs<HTMLButtonElement>("anim-step-forward").addEventListener("click", () => timeline.stepForward());
-  qs<HTMLButtonElement>("anim-step-back").addEventListener("click", () => timeline.stepBackward());
+  qs<HTMLButtonElement>("anim-step-forward").addEventListener("click", () =>
+    app.getTimeline().stepForward(),
+  );
+  qs<HTMLButtonElement>("anim-step-back").addEventListener("click", () =>
+    app.getTimeline().stepBackward(),
+  );
 
   const speed = qs<HTMLInputElement>("anim-speed");
-  speed.addEventListener("input", () => timeline.setSpeed(Number(speed.value)));
+  speed.addEventListener("input", () => app.getTimeline().setSpeed(Number(speed.value)));
 }
 
-function wireVisibilityControls(app: App, doc: ReturnType<App["getDoc"]>): void {
+function wireVisibilityControls(app: App): void {
+  const doc = app.getDoc();
   const componentIds = [...new Set(doc.stitches.map((s) => s.component_id))];
   const container = qs<HTMLDivElement>("component-toggles");
   container.innerHTML = componentIds
     .map((id) => `<label><input type="checkbox" checked data-component="${id}" /> ${id}</label>`)
     .join("");
-  container.addEventListener("change", (event) => {
-    const target = event.target as HTMLInputElement;
-    const componentId = target.dataset.component;
-    if (!componentId) return;
-    const state = app.getStore().get();
-    const hidden = new Set(state.hiddenComponentIds);
-    if (target.checked) hidden.delete(componentId);
-    else hidden.add(componentId);
-    app.getStore().set({ hiddenComponentIds: hidden });
-  });
 
   const roundSelect = qs<HTMLSelectElement>("isolate-round");
   const roundKeys = new Set<string>();
@@ -158,17 +175,12 @@ function wireVisibilityControls(app: App, doc: ReturnType<App["getDoc"]>): void 
     const key = `${stitch.component_id}:${stitch.round_index}`;
     if (roundKeys.has(key)) continue;
     roundKeys.add(key);
-    options.push(`<option value="${key}">${stitch.component_id} round ${stitch.round_index}</option>`);
+    options.push(
+      `<option value="${key}">${stitch.component_id} round ${stitch.round_index}</option>`,
+    );
   }
   roundSelect.innerHTML = options.join("");
-  roundSelect.addEventListener("change", () => {
-    app.getStore().set({ isolatedRoundKey: roundSelect.value || null });
-  });
-
-  const opacitySlider = qs<HTMLInputElement>("opacity-slider");
-  opacitySlider.addEventListener("input", () => {
-    app.getStore().set({ opacity: Number(opacitySlider.value) / 100 });
-  });
+  app.getStore().set({ hiddenComponentIds: new Set(), isolatedRoundKey: null });
 }
 
 function wireClippingControls(app: App): void {
@@ -191,6 +203,27 @@ function wireClippingControls(app: App): void {
     el.addEventListener("input", pushState);
     el.addEventListener("change", pushState);
   }
+
+  qs<HTMLDivElement>("component-toggles").addEventListener("change", (event) => {
+    const target = event.target as HTMLInputElement;
+    const componentId = target.dataset.component;
+    if (!componentId) return;
+    const state = app.getStore().get();
+    const hidden = new Set(state.hiddenComponentIds);
+    if (target.checked) hidden.delete(componentId);
+    else hidden.add(componentId);
+    app.getStore().set({ hiddenComponentIds: hidden });
+  });
+
+  qs<HTMLSelectElement>("isolate-round").addEventListener("change", (event) => {
+    const select = event.target as HTMLSelectElement;
+    app.getStore().set({ isolatedRoundKey: select.value || null });
+  });
+
+  qs<HTMLInputElement>("opacity-slider").addEventListener("input", (event) => {
+    const input = event.target as HTMLInputElement;
+    app.getStore().set({ opacity: Number(input.value) / 100 });
+  });
 }
 
 function wireInspector(app: App): void {
@@ -260,6 +293,96 @@ function wireResize(app: App): void {
   // rAFs guarantee at least one full layout/paint has happened before this
   // explicit re-measure.
   requestAnimationFrame(() => requestAnimationFrame(() => app.handleResize()));
+}
+
+const STATUS_LABELS: Record<CompileState["status"], string> = {
+  idle: "",
+  compiling: "Compiling…",
+  success: "Compiled successfully.",
+  validation_error: "Pattern could not be compiled — see diagnostics below.",
+  network_error: "Could not reach the compile server.",
+  internal_error: "The compiled result could not be loaded.",
+};
+
+const SEVERITY_LABEL: Record<string, string> = {
+  error: "Error",
+  warning: "Warning",
+  info: "Info",
+};
+
+function wireCompileWorkflow(app: App, controller: CompileController): void {
+  const form = qs<HTMLFormElement>("compile-form");
+  const source = qs<HTMLTextAreaElement>("pattern-source");
+  const compileButton = qs<HTMLButtonElement>("compile-button");
+  const exampleButton = qs<HTMLButtonElement>("example-button");
+  const clearButton = qs<HTMLButtonElement>("clear-button");
+  const status = qs<HTMLParagraphElement>("compile-status");
+  const summaryEl = qs<HTMLDListElement>("compile-summary");
+  const diagnosticsEl = qs<HTMLUListElement>("diagnostics-list");
+
+  source.value = AMIGURUMI_EXAMPLE;
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void controller.submit(source.value);
+  });
+
+  // Ctrl+Enter (or Cmd+Enter on macOS) compiles without leaving the textarea.
+  source.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      void controller.submit(source.value);
+    }
+  });
+
+  exampleButton.addEventListener("click", () => {
+    source.value = AMIGURUMI_EXAMPLE;
+  });
+
+  clearButton.addEventListener("click", () => {
+    source.value = "";
+    source.focus();
+  });
+
+  controller.store.subscribe((state) => {
+    status.textContent = STATUS_LABELS[state.status];
+    status.dataset.status = state.status;
+    compileButton.disabled = state.status === "compiling";
+
+    if (state.status === "success" && state.summary) {
+      summaryEl.hidden = false;
+      const rows: [string, string][] = [
+        ["Sections", String(state.summary.sectionCount)],
+        ["Stitches", String(state.summary.stitchCount)],
+        ["Components", String(state.summary.componentCount)],
+      ];
+      summaryEl.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+      refreshDocDependentUI(app);
+    } else if (state.status !== "compiling") {
+      summaryEl.hidden = true;
+    }
+
+    if (state.errorMessage) {
+      diagnosticsEl.innerHTML = `<li data-severity="error">${SEVERITY_LABEL.error}: ${state.errorMessage}</li>`;
+      return;
+    }
+
+    diagnosticsEl.innerHTML = state.diagnostics
+      .map((d) => {
+        const location =
+          d.line !== null
+            ? `<div class="diagnostic-location">Line ${d.line}${d.sourceText ? `: ${escapeHtml(d.sourceText)}` : ""}</div>`
+            : "";
+        return `<li data-severity="${d.severity}">${SEVERITY_LABEL[d.severity] ?? d.severity}: ${escapeHtml(d.message)}${location}</li>`;
+      })
+      .join("");
+  });
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 main().catch((err) => {

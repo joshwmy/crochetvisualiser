@@ -26,26 +26,27 @@ export interface ViewerState {
   animationSpeed: number; // stitches per second
 }
 
-export type Listener = (state: ViewerState) => void;
+export type Listener<T> = (state: T) => void;
 
-export class Store {
-  private state: ViewerState;
-  private listeners: Set<Listener> = new Set();
+/** Generic framework-free reactive store — also used by state/compile_store.ts. */
+export class Store<T> {
+  private state: T;
+  private listeners: Set<Listener<T>> = new Set();
 
-  constructor(initial: ViewerState) {
+  constructor(initial: T) {
     this.state = initial;
   }
 
-  get(): ViewerState {
+  get(): T {
     return this.state;
   }
 
-  set(patch: Partial<ViewerState>): void {
+  set(patch: Partial<T>): void {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener(this.state);
   }
 
-  subscribe(listener: Listener): () => void {
+  subscribe(listener: Listener<T>): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }

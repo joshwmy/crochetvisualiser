@@ -24,9 +24,92 @@ body {
 
 #app {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 360px 1fr 320px;
   height: 100vh;
   width: 100vw;
+}
+
+#editor-panel {
+  overflow-y: auto;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--border);
+  padding: 1rem;
+}
+
+#editor-panel h1 {
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+#pattern-source {
+  width: 100%;
+  min-height: 220px;
+  background: #0d1017;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.8rem;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  resize: vertical;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0.25rem 0 0;
+}
+
+#compile-status {
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin: 0.75rem 0;
+}
+
+#compile-status[data-status="compiling"] {
+  color: var(--accent);
+}
+#compile-status[data-status="success"] {
+  color: #6fd18a;
+}
+#compile-status[data-status="validation_error"],
+#compile-status[data-status="network_error"],
+#compile-status[data-status="internal_error"] {
+  color: #e88a8a;
+}
+
+#diagnostics-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+#diagnostics-list li {
+  border-left: 3px solid var(--muted);
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.4rem;
+  background: #1c212c;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Severity is never colour-only: each item also gets a text label prefix
+   (see main.ts) so colour-blind users and screen readers get the same
+   information. */
+#diagnostics-list li[data-severity="error"] {
+  border-left-color: #e85d5d;
+}
+#diagnostics-list li[data-severity="warning"] {
+  border-left-color: #e8a33d;
+}
+#diagnostics-list li[data-severity="info"] {
+  border-left-color: #5fb0e6;
+}
+
+#diagnostics-list .diagnostic-location {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 #viewport {
@@ -168,10 +251,12 @@ dd {
 @media (max-width: 900px) {
   #app {
     grid-template-columns: 1fr;
-    grid-template-rows: 60vh 1fr;
+    grid-template-rows: auto 60vh auto;
   }
-  #panel {
+  #panel,
+  #editor-panel {
     border-left: none;
+    border-right: none;
     border-top: 1px solid var(--border);
   }
 }

@@ -30,4 +30,22 @@ describe("validateGeometry", () => {
     doc.stitches[0].position = [Number.NaN, 0, 0];
     expect(() => validateGeometry(doc)).toThrow(/non-finite/);
   });
+
+  it("rejects a missing graph_fingerprint", () => {
+    const doc = makeTestGeometry();
+    doc.graph_fingerprint = null;
+    expect(() => validateGeometry(doc)).toThrow(/fingerprint/);
+  });
+
+  it("rejects a missing geometry_fingerprint", () => {
+    const doc = makeTestGeometry();
+    doc.geometry_fingerprint = null;
+    expect(() => validateGeometry(doc)).toThrow(/fingerprint/);
+  });
+
+  it("tolerates a missing pattern_fingerprint (written patterns have none)", () => {
+    const doc = makeTestGeometry();
+    doc.pattern_fingerprint = null;
+    expect(() => validateGeometry(doc)).not.toThrow();
+  });
 });

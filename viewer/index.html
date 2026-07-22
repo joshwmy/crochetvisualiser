@@ -8,6 +8,45 @@
   </head>
   <body>
     <div id="app">
+      <aside id="editor-panel">
+        <h1>Written pattern</h1>
+        <p class="subtitle">US terminology only. See the example for supported syntax.</p>
+
+        <form id="compile-form">
+          <label for="pattern-source">Pattern text</label>
+          <textarea
+            id="pattern-source"
+            rows="14"
+            spellcheck="false"
+            aria-describedby="compile-status"
+          ></textarea>
+
+          <label for="terminology-select">Terminology</label>
+          <select id="terminology-select">
+            <option value="US">US</option>
+          </select>
+
+          <div class="button-row">
+            <button id="compile-button" type="submit">Interpret and render</button>
+            <button id="example-button" type="button">Load example</button>
+            <button id="clear-button" type="button">Clear</button>
+          </div>
+          <p class="hint">Ctrl+Enter to compile.</p>
+        </form>
+
+        <p id="compile-status" role="status" aria-live="polite"></p>
+
+        <section aria-labelledby="summary-heading">
+          <h2 id="summary-heading">Summary</h2>
+          <dl id="compile-summary"></dl>
+        </section>
+
+        <section aria-labelledby="diagnostics-heading">
+          <h2 id="diagnostics-heading">Diagnostics</h2>
+          <ul id="diagnostics-list" aria-label="Compile diagnostics"></ul>
+        </section>
+      </aside>
+
       <canvas id="viewport" aria-label="3D crochet stitch viewer"></canvas>
       <div id="viewer-error" role="alert"></div>
       <aside id="panel">

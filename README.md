@@ -138,7 +138,7 @@ here changes engine code automatically).
 
 ## Stitch graph, geometry, and the scientific 3D viewer
 
-Given a compiled `Pattern`, `crochet_reconstruction.graph` expands its
+Given a compiled component list, `crochet_reconstruction.graph` expands its
 aggregate operations into an explicit per-stitch graph (stable IDs,
 insertion targets, sequence order), and `crochet_reconstruction.geometry`
 places every stitch in approximate 3D space using gauge-driven analytical
@@ -146,23 +146,56 @@ formulas. A Vite + TypeScript + Three.js viewer (`viewer/`) renders the
 result with scientific-inspection interactions (orbit, clipping planes,
 round isolation, construction animation, stitch-level selection).
 
-```bash
-# Generate renderer-ready geometry from a structured pattern:
-python -m crochet_reconstruction.cli generate-geometry \
-  --input examples/adult_beanie_hdc.json \
-  --output build/geometry_fixtures/adult_beanie_hdc/
+```text
+Written pattern
+  -> parsing.written (Lark grammar + deterministic semantic expansion)
+  -> domain.rounds.Component / domain.operations.Operation   (existing, unmodified)
+  -> graph.builder.build_stitch_graph                          (existing, unmodified)
+  -> geometry.layout.build_geometry                            (existing, unmodified)
+  -> api: POST /api/visualizer/compile
+  -> viewer: pasted pattern -> live 3D model (no manual fixture regeneration)
+```
 
-# Copy the fixture where the viewer expects it, then run the viewer:
-cp build/geometry_fixtures/adult_beanie_hdc/geometry.json viewer/public/geometry.json
+Diagram parsing (SVG/PNG crochet charts) will later feed the same
+`Component`/`StitchGraph` boundary as a third producer, alongside the
+existing structured-JSON path and this written-pattern path — see
+`docs/written-pattern-grammar.md`.
+
+```bash
+# Backend (compile API):
+pip install -e ".[dev,api]"
+uvicorn crochet_reconstruction.api.app:create_app --factory --reload --port 8000
+
+# Frontend (viewer, with a live "paste pattern -> compile -> render" editor):
 cd viewer
 npm install
 npm run dev      # http://localhost:5173
+```
+
+Paste a pattern (an example is preloaded) into the left panel and click
+"Interpret and render" — no fixture file to regenerate or copy by hand. The
+static `viewer/public/geometry.json` fixture still loads on startup as a
+zero-backend-required demo/fallback (see
+[frontend-to-backend setup](docs/frontend-backend-setup.md)) and remains
+useful standalone via:
+
+```bash
+python -m crochet_reconstruction.cli generate-geometry \
+  --input examples/adult_beanie_hdc.json \
+  --output build/geometry_fixtures/adult_beanie_hdc/
+cp build/geometry_fixtures/adult_beanie_hdc/geometry.json viewer/public/geometry.json
 ```
 
 See: [Crochet IR](docs/crochet-ir-spec.md) ·
 [stitch graph](docs/stitch-graph-spec.md) ·
 [geometry transfer](docs/geometry-transfer-spec.md) ·
 [scientific viewer](docs/scientific-viewer-spec.md) ·
+[written-pattern grammar](docs/written-pattern-grammar.md) ·
+[diagnostic codes](docs/diagnostic-codes.md) ·
+[compile API](docs/compile-api.md) ·
+[frontend-to-backend setup](docs/frontend-backend-setup.md) ·
+[open-source resource adoption](docs/open-source-resource-adoption.md) ·
+[canonical JSON / RFC 8785 audit](docs/canonical-json-audit.md) ·
 [known limitations](docs/known-limitations.md).
 
 ## Contributor submission portal (paused, not deleted)
@@ -199,6 +232,8 @@ pytest tests/physical_validation    # trial matrix, review pack, ingestion, metr
 pytest tests/portal                 # portal domain/service/image/API tests (paused feature, still passing)
 pytest tests/graph                  # stitch-graph builder + invariant tests
 pytest tests/geometry               # geometry-layout tests
+pytest tests/parsing                # written-pattern parser + semantic-conversion tests
+pytest tests/api                    # compile API tests
 
 ruff check .                    # lint
 ruff format --check .           # formatting check
@@ -210,6 +245,7 @@ cd viewer
 npm run typecheck    # tsc --noEmit
 npm run build        # production build (tsc -b && vite build)
 npm test             # vitest run — unit tests + benchmark measurements
+npm run e2e          # Playwright: real browser against a real backend (starts both servers itself)
 ```
 
 ## Architecture summary
@@ -221,13 +257,17 @@ src/crochet_reconstruction/
 ├── engine/                # Pure Decimal math + orchestration. No I/O, no Pydantic validation logic beyond models.
 ├── validation/            # Rule catalogue over an already-compiled Pattern. Severity-ranked.
 ├── rendering/             # Pattern -> text. Reads structured fields only; no arithmetic.
-├── graph/                 # Pattern -> explicit per-stitch StitchGraph (stable IDs, insertion targets, sequence order).
+├── graph/                 # Components -> explicit per-stitch StitchGraph (stable IDs, insertion targets, sequence order).
 ├── geometry/              # StitchGraph -> approximate 3D positions/frames (analytical, no simulation).
+├── parsing/written/       # Written pattern text -> domain.rounds.Component (Lark grammar, deterministic).
+├── api/                   # POST /api/visualizer/compile — stateless FastAPI app, separate from portal/.
 ├── physical_validation/   # Phase 1.5: trial matrix, review-pack generation, result ingestion, metrics, reporting.
 ├── portal/                # Contributor submission portal — paused (FastAPI/SQLAlchemy/Pillow, `portal` extra).
 └── cli.py                # Thin I/O wrapper: JSON in, files out.
 
 viewer/                    # Vite + TypeScript + Three.js scientific 3D viewer (separate npm project).
+├── e2e/                   # Playwright: real-browser compile-workflow test.
+└── tests/                 # Vitest: unit/module tests.
 ```
 
 The domain engine has **zero dependency** on FastAPI, a database, a

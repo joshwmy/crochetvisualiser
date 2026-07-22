@@ -1,9 +1,51 @@
-# Known limitations — scientific 3D visualiser (first milestone)
+# Known limitations — scientific 3D visualiser
 
-Honest accounting of what this milestone deliberately does not do. Each was
-a scope decision to prove the graph→geometry→viewer pipeline end-to-end on
-one category first, per the brief's explicit "narrow the first category,
-prove the pipeline" instruction — none were discovered too late.
+Honest accounting of what this project deliberately does not do. Each was
+a scope decision to prove the pipeline end-to-end on one category (and,
+later, one input route) first — none were discovered too late.
+
+## Written-pattern parser (this slice)
+
+- **US terminology only.** No UK-terminology mapping (`dc` means different
+  stitches in each system) — the compile API's `terminology` field is
+  currently `Literal["US"]` for exactly this reason, not a placeholder.
+- **`chain`/`slip stitch` are recognised but not convertible.** The grammar
+  tokenises them (so they don't silently fail as gibberish); semantic
+  conversion explicitly rejects them as `UNSUPPORTED_SYNTAX` because the
+  domain model has no turning-chain/join operation type yet.
+- **No row/turning semantics.** `row`/`rows` are accepted syntactically and
+  compile to the same `Round`/`Component` structure as `round`/`rounds` —
+  there is no turning-chain, no "wrong side"/"right side," and no directional
+  reversal. A `row`-labelled section behaves identically to a `round` one.
+- **Free-text phrases are not understood, by design.** "Work even," "repeat
+  from *," "increase evenly," "shape as established," etc. all fail as
+  `INVALID_SYNTAX` rather than being guessed — exactly as specified.
+- **Only one component per pattern.** Every written pattern compiles to a
+  single `ComponentKind.PIECE`; multi-piece patterns (a body plus a
+  separately-worked head) have no join/assembly syntax yet.
+- **Increase/decrease stitch type is inferred, not stated.** `inc`/`dec`
+  don't name a stitch family in real written patterns; this parser defaults
+  to the pattern's first plain stitch (`sc` if none exists) — see
+  `docs/written-pattern-grammar.md`'s deterministic-assumptions list.
+
+## Compile API and viewer integration (this slice)
+
+- **No diagram/image input.** Text only — SVG/raster chart parsing remains
+  fully deferred (see the "future diagram pipeline" section below).
+- **No persistence.** The API never writes submitted patterns to disk and
+  has no database; closing the tab loses the current pattern text (the
+  textarea itself has no autosave).
+- **Single clipping plane, no measurement/annotation tools** — unchanged
+  from the previous milestone; this slice didn't touch viewer features
+  beyond the compile/load/dispose path.
+- **`options.strict` has no effect yet** — accepted by the API and typed in
+  the schema, reserved for a future stricter-diagnostics mode, not silently
+  dropped but also not yet implemented.
+- **E2E coverage is one workflow test**, not a full interaction matrix —
+  `viewer/e2e/compile-workflow.spec.ts` covers the brief's specific 11-step
+  scenario; camera/clipping/animation interactions during a live compile
+  session are covered by Vitest unit tests and the previous milestone's
+  manual verification, not by Playwright.
 
 ## Geometry accuracy
 
@@ -88,3 +130,16 @@ full finite-element or fibre simulation, every crochet stitch, complex
 garments/lace/assembly, mobile apps, VR, multiplayer, AI-generated final
 geometry without deterministic structure, and automatic redistribution of
 uploaded patterns.
+
+Additionally excluded from the written-pattern compile slice: crochet
+diagram/chart recognition, raster image parsing, OCR, machine learning of
+any kind, full yarn physics, XPBD relaxation, path tracing, WebGPU-specific
+rendering, a redesign of the existing graph/geometry architecture (the
+existing `StitchGraph`/`GeometryDocument` schemas were reused unmodified —
+only their producer-function signatures were narrowed to drop an
+unnecessary beanie-`Pattern` dependency), user accounts, a pattern
+marketplace, and cloud storage. The future diagram pipeline remains:
+`SVG diagram parsing -> raster preprocessing with OpenCV -> optional learned
+symbol detection -> canonical Component/StitchGraph -> existing geometry
+pipeline` — see `docs/open-source-resource-adoption.md` for the OpenCV/
+Detectron2 evaluation and why both remain deferred.

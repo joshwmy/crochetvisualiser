@@ -13,3 +13,9 @@ dist_check/
 portal_data/
 portal_data_alembic_tmp/
 .env
+viewer/.env
+viewer/test-results/
+viewer/playwright-report/
+viewer/blob-report/
+viewer/tsconfig.tsbuildinfo
+.claude/scheduled_tasks.lock

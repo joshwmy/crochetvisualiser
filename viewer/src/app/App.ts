@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { GeometryDocument } from "../types/geometry";
+import { validateGeometry } from "../geometry/load";
 import { createScene } from "../scene/scene";
 import { CameraRig, type ViewPreset } from "../camera/camera";
 import { createRenderer } from "../rendering/renderer";
@@ -30,7 +31,7 @@ export class App {
   private picker = new Picker();
   private highlighter: SelectionHighlighter;
   private timeline: ConstructionTimeline;
-  private store: Store;
+  private store: Store<ViewerState>;
   private canvas: HTMLCanvasElement;
   private doc: GeometryDocument;
   private stats: PerformanceStats;
@@ -39,43 +40,19 @@ export class App {
     this.canvas = canvas;
     this.doc = doc;
 
-    const genStart = performance.now();
     this.scene = createScene();
     this.renderer = createRenderer(canvas);
     this.cameraRig = new CameraRig(canvas, canvas.clientWidth / canvas.clientHeight || 1);
-
-    this.structural = buildStructuralScene(doc);
-    for (const group of this.structural.groups) this.scene.add(group.mesh);
-
-    this.yarnMeshes = buildYarnMeshes(doc);
-    for (const mesh of this.yarnMeshes) {
-      mesh.visible = false;
-      this.scene.add(mesh);
-    }
-    const genEnd = performance.now();
-
     this.highlighter = new SelectionHighlighter(this.scene);
+
+    const built = this.buildSceneObjects(doc, jsonSizeBytes);
+    this.structural = built.structural;
+    this.yarnMeshes = built.yarnMeshes;
+    this.stats = built.stats;
     this.cameraRig.fitToBounds(doc.bounds);
 
     this.store = new Store(createInitialState(doc.stitches.length));
-    this.timeline = new ConstructionTimeline(doc.stitches, (index) => {
-      this.store.set({ animationIndex: index });
-    });
-
-    let triangles = 0;
-    for (const group of this.structural.groups) {
-      const positionCount = group.mesh.geometry.getAttribute("position").count;
-      triangles += (positionCount / 3) * group.mesh.count;
-    }
-
-    this.stats = {
-      stitchCount: doc.stitches.length,
-      yarnSegmentCount: doc.yarn_segments.length,
-      triangleCount: Math.round(triangles),
-      drawCalls: this.structural.groups.length,
-      geometryGenerationMs: genEnd - genStart,
-      jsonSizeBytes,
-    };
+    this.timeline = this.createTimeline(doc);
 
     this.store.subscribe((state) => this.applyState(state));
     this.applyState(this.store.get());
@@ -88,7 +65,117 @@ export class App {
     this.renderLoop();
   }
 
-  getStore(): Store {
+  /**
+   * Replace the currently displayed model with a newly compiled one.
+   *
+   * Validates the document, disposes every Three.js resource owned by the
+   * previous model (geometries, materials, the old picking/selection
+   * mapping), rebuilds structural + yarn representations, and resets
+   * selection/isolation/animation/clipping state to fresh defaults for the
+   * new bounds — while preserving user display preferences (view mode,
+   * camera projection, global opacity) across the swap. Throws
+   * (asynchronously, via the returned rejected promise) without touching
+   * any current scene state if `doc` fails validation — a failed load must
+   * never leave a half-updated viewer.
+   */
+  async loadGeometryDocument(doc: GeometryDocument, jsonSizeBytes = 0): Promise<void> {
+    validateGeometry(doc);
+
+    const previousStructural = this.structural;
+    const previousYarn = this.yarnMeshes;
+
+    const built = this.buildSceneObjects(doc, jsonSizeBytes);
+
+    // Only after the new scene objects are successfully built do we tear
+    // down the old ones and swap state — this ordering means a throw
+    // inside buildSceneObjects (e.g. a malformed but schema-valid document)
+    // leaves the previous valid model fully intact and on screen.
+    this.disposeStructural(previousStructural);
+    this.disposeYarn(previousYarn);
+
+    this.structural = built.structural;
+    this.yarnMeshes = built.yarnMeshes;
+    this.stats = built.stats;
+    this.doc = doc;
+
+    this.highlighter.clear();
+    this.timeline = this.createTimeline(doc);
+    this.cameraRig.fitToBounds(doc.bounds);
+
+    this.store.set({
+      selectedStitchId: null,
+      hoveredStitchId: null,
+      isolatedRoundKey: null,
+      roundRange: null,
+      hiddenComponentIds: new Set(),
+      clipping: { enabled: false, axis: "z", offset: 0, invert: false },
+      animationIndex: doc.stitches.length,
+      animationPlaying: false,
+      // viewMode, cameraMode, opacity, animationSpeed deliberately untouched
+      // — user display preferences survive a recompile.
+    });
+  }
+
+  private buildSceneObjects(
+    doc: GeometryDocument,
+    jsonSizeBytes: number,
+  ): { structural: StructuralScene; yarnMeshes: THREE.Mesh[]; stats: PerformanceStats } {
+    const genStart = performance.now();
+    const structural = buildStructuralScene(doc);
+    for (const group of structural.groups) this.scene.add(group.mesh);
+
+    const yarnMeshes = buildYarnMeshes(doc);
+    for (const mesh of yarnMeshes) {
+      mesh.visible = false;
+      this.scene.add(mesh);
+    }
+    const genEnd = performance.now();
+
+    let triangles = 0;
+    for (const group of structural.groups) {
+      const positionCount = group.mesh.geometry.getAttribute("position").count;
+      triangles += (positionCount / 3) * group.mesh.count;
+    }
+
+    const stats: PerformanceStats = {
+      stitchCount: doc.stitches.length,
+      yarnSegmentCount: doc.yarn_segments.length,
+      triangleCount: Math.round(triangles),
+      drawCalls: structural.groups.length,
+      geometryGenerationMs: genEnd - genStart,
+      jsonSizeBytes,
+    };
+
+    return { structural, yarnMeshes, stats };
+  }
+
+  private createTimeline(doc: GeometryDocument): ConstructionTimeline {
+    return new ConstructionTimeline(doc.stitches, (index) => {
+      this.store.set({ animationIndex: index });
+    });
+  }
+
+  private disposeStructural(structural: StructuralScene): void {
+    const disposedGeometries = new Set<THREE.BufferGeometry>();
+    for (const group of structural.groups) {
+      this.scene.remove(group.mesh);
+      if (!disposedGeometries.has(group.mesh.geometry)) {
+        group.mesh.geometry.dispose();
+        disposedGeometries.add(group.mesh.geometry);
+      }
+      (group.mesh.material as THREE.Material).dispose();
+    }
+  }
+
+  private disposeYarn(meshes: THREE.Mesh[]): void {
+    for (const mesh of meshes) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
+  }
+
+  getStore(): Store<ViewerState> {
     return this.store;
   }
 
@@ -98,6 +185,14 @@ export class App {
 
   getStats(): PerformanceStats {
     return this.stats;
+  }
+
+  /** Test-only hook (see e2e/compile-workflow.spec.ts): exposes Three.js's
+   * own resource accounting so an end-to-end test can confirm repeated
+   * `loadGeometryDocument` calls don't leak geometries/textures rather than
+   * just trusting the disposal code by inspection. */
+  getRendererInfo(): THREE.WebGLInfo {
+    return this.renderer.info;
   }
 
   getDoc(): GeometryDocument {
