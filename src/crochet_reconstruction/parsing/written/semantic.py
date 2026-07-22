@@ -14,12 +14,15 @@ diagnostics list.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from crochet_reconstruction.domain.enums import (
     ClosureKind,
     ComponentKind,
     Construction,
     StitchFamily,
 )
+from crochet_reconstruction.domain.gauge import Gauge
 from crochet_reconstruction.domain.rounds import Component, Round
 from crochet_reconstruction.parsing.written.convert import (
     SemanticError,
@@ -49,6 +52,17 @@ Chosen well above the largest realistic hand-written pattern (the
 engineered to expand into millions of stitches, per the brief's explicit
 "fail safely" requirement.
 """
+
+DEFAULT_WRITTEN_PATTERN_GAUGE = Gauge(
+    stitch_family=StitchFamily.SC,
+    stitches_per_10cm=Decimal("16.0"),
+    rounds_per_10cm=Decimal("16.0"),
+)
+"""Applied when a written pattern doesn't (and currently can't) specify its
+own gauge — a written pattern has no ``ProjectInput.gauge`` equivalent
+field. Affects 3D scale only, never stitch counts or structure. Callers
+that build geometry from this parser's output (e.g. ``api/service.py``)
+should use this constant rather than inventing their own default."""
 
 
 def parse_written_pattern(source: str) -> tuple[list[Component] | None, list[Diagnostic]]:

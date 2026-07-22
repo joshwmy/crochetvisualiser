@@ -52,6 +52,16 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    # Cosmetic-only: pydantic 2.13's alias_generator + FastAPI's OpenAPI
+    # schema derivation interact to emit this warning even though
+    # alias-based (de)serialization is verified working correctly (see
+    # tests/api/test_compile_endpoint.py). Narrowly scoped to this exact
+    # message text so any other pydantic warning still surfaces normally.
+    "ignore:The 'alias' attribute with value.*was provided to the `Field\\(\\)` function:UserWarning",
+    "ignore:The 'validation_alias' attribute with value.*was provided to the `Field\\(\\)` function:UserWarning",
+    "ignore:The 'serialization_alias' attribute with value.*was provided to the `Field\\(\\)` function:UserWarning",
+]
 
 [tool.ruff]
 line-length = 100
