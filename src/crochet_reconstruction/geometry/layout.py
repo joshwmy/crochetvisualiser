@@ -6,7 +6,8 @@ import hashlib
 import json
 import math
 
-from crochet_reconstruction.domain.pattern import Pattern
+from crochet_reconstruction.domain.gauge import Gauge
+from crochet_reconstruction.domain.rounds import Component
 from crochet_reconstruction.geometry.models import (
     GaugeAssumptions,
     GeometryBounds,
@@ -64,12 +65,21 @@ def compute_geometry_fingerprint(document: GeometryDocument) -> str:
 
 
 def build_geometry(
-    pattern: Pattern,
+    components: list[Component],
+    gauge: Gauge,
     graph: StitchGraph,
     *,
+    pattern_fingerprint: str | None = None,
     yarn_diameter_cm: float | None = None,
 ) -> GeometryDocument:
     """Build the complete renderer-ready geometry document.
+
+    Takes ``components``/``gauge`` directly rather than a full ``Pattern``
+    for the same reason as ``graph.builder.build_stitch_graph`` — this
+    module never reads ``Pattern.input``'s beanie-specific fields beyond
+    ``gauge``, or ``Pattern.calculated`` at all. Any caller with a full
+    beanie ``Pattern`` passes ``pattern.components``, ``pattern.input.gauge``,
+    and ``pattern_fingerprint=pattern.fingerprint``.
 
     ``graph`` must already have passed
     :func:`crochet_reconstruction.graph.validation.validate_graph` — this
@@ -77,11 +87,11 @@ def build_geometry(
     gates the next stage" structure (compile -> validate -> graph -> validate
     -> geometry).
     """
-    stitches_per_cm = float(pattern.input.gauge.stitches_per_cm)
-    rounds_per_cm = float(pattern.input.gauge.rounds_per_cm)
+    stitches_per_cm = float(gauge.stitches_per_cm)
+    rounds_per_cm = float(gauge.rounds_per_cm)
     resolved_yarn_diameter = yarn_diameter_cm or default_yarn_diameter_cm(stitches_per_cm)
 
-    stitch_geometry_by_id = place_stitches(pattern, graph)
+    stitch_geometry_by_id = place_stitches(components, gauge, graph)
     stitches = [stitch_geometry_by_id[n.stitch_id] for n in graph.nodes]
     positions = [s.position for s in stitches]
 
@@ -114,7 +124,7 @@ def build_geometry(
     ]
 
     document = GeometryDocument(
-        pattern_fingerprint=pattern.fingerprint,
+        pattern_fingerprint=pattern_fingerprint,
         graph_fingerprint=graph.fingerprint,
         gauge=GaugeAssumptions(
             stitches_per_cm=stitches_per_cm,

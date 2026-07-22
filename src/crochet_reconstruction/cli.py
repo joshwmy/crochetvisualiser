@@ -136,13 +136,18 @@ def _generate_geometry(input_path: Path, output_dir: Path) -> int:
         return 1
 
     try:
-        graph = build_stitch_graph(pattern)
+        graph = build_stitch_graph(pattern.components, pattern_fingerprint=pattern.fingerprint)
         validate_graph(graph)
     except StitchGraphError as exc:
         print(f"error: stitch graph could not be built or validated: {exc}", file=sys.stderr)
         return 4
 
-    geometry = build_geometry(pattern, graph)
+    geometry = build_geometry(
+        pattern.components,
+        pattern.input.gauge,
+        graph,
+        pattern_fingerprint=pattern.fingerprint,
+    )
     output_path = write_geometry_json(geometry, output_dir / "geometry.json")
 
     print(f"stitches: {len(geometry.stitches)}")

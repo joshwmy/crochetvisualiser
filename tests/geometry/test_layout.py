@@ -14,8 +14,11 @@ from tests.conftest import make_project_input
 
 def _build(**overrides):
     pattern = compile_pattern(make_project_input(**overrides))
-    graph = build_stitch_graph(pattern)
-    return pattern, graph, build_geometry(pattern, graph)
+    graph = build_stitch_graph(pattern.components, pattern_fingerprint=pattern.fingerprint)
+    geometry = build_geometry(
+        pattern.components, pattern.input.gauge, graph, pattern_fingerprint=pattern.fingerprint
+    )
+    return pattern, graph, geometry
 
 
 @pytest.fixture

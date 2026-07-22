@@ -45,8 +45,7 @@ from crochet_reconstruction.domain.operations import (
     RepeatOp,
     StitchOp,
 )
-from crochet_reconstruction.domain.pattern import Pattern
-from crochet_reconstruction.domain.rounds import Round
+from crochet_reconstruction.domain.rounds import Component, Round
 from crochet_reconstruction.graph.errors import GraphBuildError
 from crochet_reconstruction.graph.fingerprint import compute_graph_fingerprint
 from crochet_reconstruction.graph.models import (
@@ -107,12 +106,23 @@ def _flatten_one(
     out.append(_FlatOp(op=op, source_reference=base_ref, repeat_group_id=repeat_group_id))
 
 
-def build_stitch_graph(pattern: Pattern) -> StitchGraph:
-    """Build the deterministic stitch graph for a compiled, validated pattern."""
+def build_stitch_graph(
+    components: list[Component], *, pattern_fingerprint: str | None = None
+) -> StitchGraph:
+    """Build the deterministic stitch graph for a compiled, validated component list.
+
+    Takes ``components`` directly (not the full ``Pattern``) because that is
+    the only part of ``Pattern`` this function ever reads — ``Pattern.input``/
+    ``Pattern.calculated`` are beanie-sizing-specific (see
+    ``domain/pattern.py``) and have no meaning for a components list produced
+    by a different producer (e.g. the written-pattern parser). Any caller
+    that has a full ``Pattern`` passes ``pattern.components`` and
+    ``pattern_fingerprint=pattern.fingerprint``.
+    """
     state = _BuildState()
     prev_round_ids: list[str] = []
 
-    for component in pattern.components:
+    for component in components:
         component_label = component.kind.value
         for round_ in component.rounds:
             prev_round_ids = _build_round(state, component_label, round_, prev_round_ids)
@@ -120,7 +130,7 @@ def build_stitch_graph(pattern: Pattern) -> StitchGraph:
     _add_yarn_sequence_edges(state)
 
     graph = StitchGraph(
-        pattern_fingerprint=pattern.fingerprint,
+        pattern_fingerprint=pattern_fingerprint,
         nodes=state.nodes,
         edges=state.edges,
         yarn_segments=state.segments,

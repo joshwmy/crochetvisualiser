@@ -33,7 +33,9 @@ Documented geometric assumptions (all analytical, not measured or simulated):
    overridden — a rough visual default, not a measured yarn property.
 
 None of this feeds back into the deterministic engine; it is a one-way,
-read-only consumer of the compiled ``Pattern`` and its ``StitchGraph``.
+read-only consumer of a component list and gauge — not the full ``Pattern``,
+since ``Pattern.input``/``Pattern.calculated`` carry beanie-sizing fields
+this module never reads (see ``graph/builder.py``'s equivalent note).
 """
 
 from __future__ import annotations
@@ -42,7 +44,8 @@ import math
 from dataclasses import dataclass
 
 from crochet_reconstruction.domain.enums import ComponentKind
-from crochet_reconstruction.domain.pattern import Pattern
+from crochet_reconstruction.domain.gauge import Gauge
+from crochet_reconstruction.domain.rounds import Component
 from crochet_reconstruction.geometry.frames import frame_to_quaternion, radial_frame
 from crochet_reconstruction.geometry.models import StitchGeometry, Vec3
 from crochet_reconstruction.graph.models import StitchGraph, StitchNode
@@ -62,9 +65,11 @@ def default_yarn_diameter_cm(stitches_per_cm: float) -> float:
     return DEFAULT_YARN_DIAMETER_FRACTION_OF_STITCH_WIDTH / stitches_per_cm
 
 
-def _round_placements(pattern: Pattern) -> dict[tuple[str, int], _RoundPlacement]:
-    stitches_per_cm = float(pattern.input.gauge.stitches_per_cm)
-    rounds_per_cm = float(pattern.input.gauge.rounds_per_cm)
+def _round_placements(
+    components: list[Component], gauge: Gauge
+) -> dict[tuple[str, int], _RoundPlacement]:
+    stitches_per_cm = float(gauge.stitches_per_cm)
+    rounds_per_cm = float(gauge.rounds_per_cm)
     row_height_cm = 1.0 / rounds_per_cm
 
     radii: dict[tuple[str, int], float] = {}
@@ -72,7 +77,7 @@ def _round_placements(pattern: Pattern) -> dict[tuple[str, int], _RoundPlacement
     ordered_keys: list[tuple[str, int]] = []
     crown_keys: list[tuple[str, int]] = []
 
-    for component in pattern.components:
+    for component in components:
         for round_ in component.rounds:
             key = (component.kind.value, round_.number)
             circumference_cm = round_.stated_total / stitches_per_cm
@@ -103,9 +108,11 @@ def _round_placements(pattern: Pattern) -> dict[tuple[str, int], _RoundPlacement
     return placements
 
 
-def place_stitches(pattern: Pattern, graph: StitchGraph) -> dict[str, StitchGeometry]:
+def place_stitches(
+    components: list[Component], gauge: Gauge, graph: StitchGraph
+) -> dict[str, StitchGeometry]:
     """Compute a :class:`StitchGeometry` record for every node in ``graph``."""
-    placements = _round_placements(pattern)
+    placements = _round_placements(components, gauge)
     result: dict[str, StitchGeometry] = {}
 
     for node in graph.nodes:
