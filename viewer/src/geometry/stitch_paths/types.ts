@@ -40,6 +40,22 @@ export interface StitchPathSegment {
   closed: boolean;
 }
 
+/**
+ * Records how a stitch's requested loop placement (front/back/both) was
+ * actually resolved into geometry. `exact: true` means the shown geometry
+ * is not an approximation of the request (either because "both" needs no
+ * loop split, or because there was no parent to attach to at all);
+ * `exact: false` means the geometry is a documented fallback approximation
+ * — no strategy in this codebase currently models two anatomically
+ * distinct loops, so any front/back-only request on a real stitch is
+ * always `exact: false` today. See docs/stitch-geometry-strategies.md.
+ */
+export interface LoopAttachment {
+  requested: string;
+  resolved: string;
+  exact: boolean;
+}
+
 export interface StitchPathResult {
   stitchId: string;
   stitchType: string;
@@ -47,6 +63,7 @@ export interface StitchPathResult {
   segments: StitchPathSegment[];
   entryPoint: Vec3;
   exitPoint: Vec3;
+  loopAttachment: LoopAttachment;
   /** Non-fatal notices — e.g. an approximated loop-placement offset. */
   warnings: string[];
 }

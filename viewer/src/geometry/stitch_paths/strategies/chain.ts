@@ -26,6 +26,15 @@ export class ChainStitchStrategy implements StitchPathStrategy {
     const entryPoint: Vec3 = add(P, scale(T, -radius));
     const exitPoint: Vec3 = add(P, scale(T, radius));
 
+    // Chain has no front/back loop concept in real crochet (it's a single
+    // foundation loop, not a stitch top with two sides) — this strategy
+    // never reads stitch.loop_placement at all, so any non-"both" request
+    // is silently unmet unless flagged here.
+    const isDefaultPlacement = stitch.loop_placement === "both";
+    const warnings = isDefaultPlacement
+      ? []
+      : [`Loop placement (${stitch.loop_placement}) is not modelled for chain stitches — ignored.`];
+
     return {
       stitchId: stitch.stitch_id,
       stitchType: stitch.stitch_type,
@@ -35,7 +44,12 @@ export class ChainStitchStrategy implements StitchPathStrategy {
       ],
       entryPoint,
       exitPoint,
-      warnings: [],
+      loopAttachment: {
+        requested: stitch.loop_placement,
+        resolved: "loop placement is not modelled for chain stitches",
+        exact: isDefaultPlacement,
+      },
+      warnings,
     };
   }
 }

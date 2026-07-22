@@ -138,6 +138,71 @@ describe("loop placement", () => {
     // Their attach points must differ (opposite lateral offset).
     expect(frontSeg.controlPoints[1]).not.toEqual(backSeg.controlPoints[1]);
   });
+
+  it("both loops: loopAttachment reports exact (no approximation needed)", () => {
+    const parent = makeStitch({ stitch_id: "parent" });
+    const stitch = makeStitch({ parent_stitch_ids: ["parent"], loop_placement: "both" });
+    const context = makeContextWithStitches([parent, stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.requested).toBe("both");
+    expect(result.loopAttachment.exact).toBe(true);
+  });
+
+  it("front_loop_only: loopAttachment reports a fallback, not exact", () => {
+    const parent = makeStitch({ stitch_id: "parent" });
+    const stitch = makeStitch({ parent_stitch_ids: ["parent"], loop_placement: "front_loop_only" });
+    const context = makeContextWithStitches([parent, stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.requested).toBe("front_loop_only");
+    expect(result.loopAttachment.exact).toBe(false);
+    expect(result.loopAttachment.resolved).toMatch(/approximation/);
+  });
+
+  it("back_loop_only: loopAttachment reports a fallback, not exact", () => {
+    const parent = makeStitch({ stitch_id: "parent" });
+    const stitch = makeStitch({ parent_stitch_ids: ["parent"], loop_placement: "back_loop_only" });
+    const context = makeContextWithStitches([parent, stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.requested).toBe("back_loop_only");
+    expect(result.loopAttachment.exact).toBe(false);
+  });
+
+  it("no parent (magic ring root): loopAttachment is exact regardless of requested placement", () => {
+    const stitch = makeStitch({ parent_stitch_ids: [], loop_placement: "front_loop_only" });
+    const context = makeContextWithStitches([stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.exact).toBe(true);
+    expect(result.loopAttachment.resolved).toMatch(/magic ring/);
+  });
+
+  it("chain: non-'both' loop placement is flagged as unmodelled, not silently dropped", () => {
+    const stitch = makeStitch({ stitch_type: "chain", loop_placement: "front_loop_only" });
+    const context = makeContextWithStitches([stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.exact).toBe(false);
+    expect(result.warnings.some((w) => w.includes("not modelled"))).toBe(true);
+  });
+
+  it("chain: 'both' loop placement needs no warning (it's the assumed default)", () => {
+    const stitch = makeStitch({ stitch_type: "chain", loop_placement: "both" });
+    const context = makeContextWithStitches([stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.exact).toBe(true);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("slip stitch: non-'both' loop placement is flagged as unmodelled", () => {
+    const parent = makeStitch({ stitch_id: "parent" });
+    const stitch = makeStitch({
+      stitch_type: "slip_stitch",
+      parent_stitch_ids: ["parent"],
+      loop_placement: "back_loop_only",
+    });
+    const context = makeContextWithStitches([parent, stitch]);
+    const result = generateStitchPaths(stitch, context);
+    expect(result.loopAttachment.exact).toBe(false);
+    expect(result.warnings.some((w) => w.includes("not modelled"))).toBe(true);
+  });
 });
 
 describe("increase", () => {

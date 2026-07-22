@@ -1,6 +1,6 @@
 import type { StitchGeometry } from "../../../types/geometry";
 import { add, frameOf, lerp, loopPoints, scale } from "../common";
-import type { StitchPathContext, StitchPathResult, StitchPathSegment, Vec3 } from "../types";
+import type { LoopAttachment, StitchPathContext, StitchPathResult, StitchPathSegment, Vec3 } from "../types";
 
 /**
  * Shared builder for sc/hdc/dc: attach -> post -> (wraps) -> top loop -> exit.
@@ -30,6 +30,8 @@ export function buildPlainStitchPaths(
   const parentId = stitch.parent_stitch_ids[0];
   const parent = parentId ? context.getStitch(parentId) : undefined;
 
+  let loopAttachment: LoopAttachment;
+
   if (parent && stitch.loop_placement !== "both") {
     const lateral = stitch.loop_placement === "front_loop_only" ? 1 : -1;
     attachBase = add(attachBase, scale(parent.normal, lateral * context.yarnRadiusCm * 1.2));
@@ -44,6 +46,11 @@ export function buildPlainStitchPaths(
       `Loop placement (${stitch.loop_placement}) is shown as an approximate lateral offset, ` +
         "not an exact anatomical loop model.",
     );
+    loopAttachment = {
+      requested: stitch.loop_placement,
+      resolved: "lateral offset approximation of the requested single loop — no strategy models two anatomically distinct loops",
+      exact: false,
+    };
   } else if (parent) {
     segments.push({
       role: "connector",
@@ -52,6 +59,17 @@ export function buildPlainStitchPaths(
       curveType: "line",
       closed: false,
     });
+    loopAttachment = {
+      requested: stitch.loop_placement,
+      resolved: "full stitch top (both loops) — the standard insertion, no loop split needed",
+      exact: true,
+    };
+  } else {
+    loopAttachment = {
+      requested: stitch.loop_placement,
+      resolved: "no parent stitch to attach a loop to (magic ring root)",
+      exact: true,
+    };
   }
 
   const postPoints: Vec3[] = [attachBase];
@@ -101,6 +119,7 @@ export function buildPlainStitchPaths(
     segments,
     entryPoint: parent ? parent.position : attachBase,
     exitPoint,
+    loopAttachment,
     warnings,
   };
 }

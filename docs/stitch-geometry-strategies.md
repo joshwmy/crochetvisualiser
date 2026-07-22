@@ -39,7 +39,9 @@ StitchPathStrategy         — { stitchType, generatePaths(stitch, context) }
 
 StitchPathResult           — { stitchId, stitchType, strategyName,
                                 segments: StitchPathSegment[],
-                                entryPoint, exitPoint, warnings: string[] }
+                                entryPoint, exitPoint,
+                                loopAttachment: LoopAttachment,
+                                warnings: string[] }
 
 StitchPathSegment          — { role: SegmentRole, controlPoints: Vec3[],
                                 radius, curveType: "catmull_rom" | "line",
@@ -48,6 +50,10 @@ StitchPathSegment          — { role: SegmentRole, controlPoints: Vec3[],
 SegmentRole                — foundation_loop | top_loop | front_loop |
                               back_loop | post | yarn_over | pull_through |
                               connector | increase_branch | decrease_bridge
+
+LoopAttachment              — { requested: string, resolved: string,
+                                 exact: boolean } — see "Loop attachment"
+                                 below (completion-audit addition)
 ```
 
 `entryPoint`/`exitPoint` let the yarn-sequence continuity between
@@ -60,6 +66,30 @@ approximate lateral offset") through to mesh `userData` for inspection,
 rather than being logged and discarded — per the project's general
 "semantic path parts must not be silently dropped" convention (see also
 `docs/measurement-tools.md`'s "approximate, not measured" framing).
+
+## Loop attachment: exact vs. fallback (completion-audit addition)
+
+`LoopAttachment` records how a stitch's requested loop placement
+(`front_loop_only`/`back_loop_only`/`both`) was actually resolved into
+geometry — `{ requested, resolved: string (human-readable), exact:
+boolean }`. **No strategy in this codebase has ever modelled two
+anatomically distinct loops** — `buildPlainStitchPaths` always uses the
+same lateral-offset heuristic for a single-loop request — so every
+non-`both` placement on a real plain stitch is a fallback by construction:
+
+| Case | `exact` | `resolved` |
+|---|---|---|
+| `both`, has a parent | `true` | "full stitch top (both loops) — the standard insertion, no loop split needed" |
+| `front_loop_only`/`back_loop_only`, has a parent | `false` | "lateral offset approximation of the requested single loop — no strategy models two anatomically distinct loops" |
+| any placement, no parent (magic-ring root) | `true` | "no parent stitch to attach a loop to (magic ring root)" |
+| any non-`both` placement on `chain`/`slip_stitch` | `false` | "loop placement is not modelled for chain/slip stitches" — these strategies never read `loop_placement` at all, so a non-default request is flagged rather than silently ignored |
+
+Surfaced in the inspector as "Resolved attachment" and "Exact attachment"
+rows (`main.ts`), alongside the pre-existing "Loop placement (requested)"
+row. This is deliberately conservative: rather than inventing fake "exact"
+geometry to make the flag read `true` more often, the flag stays `false`
+for every case that's genuinely approximate — see
+`docs/known-limitations.md`'s "Loop placement" bullet.
 
 ## Strategy registry and fallback (`strategies/index.ts`)
 

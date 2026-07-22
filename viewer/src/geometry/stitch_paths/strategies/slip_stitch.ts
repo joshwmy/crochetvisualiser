@@ -41,6 +41,13 @@ export class SlipStitchStrategy implements StitchPathStrategy {
 
     const exitPoint: Vec3 = add(P, scale(T, context.yarnRadiusCm * 2));
 
+    // Slip stitch draws a single compact loop with no separate front/back
+    // attachment geometry — same "not modelled" situation as chain.ts.
+    const isDefaultPlacement = stitch.loop_placement === "both";
+    const warnings = isDefaultPlacement
+      ? []
+      : [`Loop placement (${stitch.loop_placement}) is not modelled for slip stitches — ignored.`];
+
     return {
       stitchId: stitch.stitch_id,
       stitchType: stitch.stitch_type,
@@ -48,7 +55,12 @@ export class SlipStitchStrategy implements StitchPathStrategy {
       segments,
       entryPoint: parent ? parent.position : attachBase,
       exitPoint,
-      warnings: [],
+      loopAttachment: {
+        requested: stitch.loop_placement,
+        resolved: "loop placement is not modelled for slip stitches",
+        exact: isDefaultPlacement,
+      },
+      warnings,
     };
   }
 }
