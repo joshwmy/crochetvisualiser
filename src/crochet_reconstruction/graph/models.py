@@ -18,11 +18,12 @@ GRAPH_SCHEMA_VERSION = "0.1.0"
 
 EdgeType = Literal["yarn_sequence", "insertion", "horizontal_neighbor", "round_closure"]
 YarnSegmentType = Literal["connector"]
-StitchHeightCategory = Literal["short", "medium"]
+StitchHeightCategory = Literal["short", "medium", "tall"]
 
 _HEIGHT_CATEGORY_BY_STITCH: dict[StitchFamily, StitchHeightCategory] = {
     StitchFamily.SC: "short",
     StitchFamily.HDC: "medium",
+    StitchFamily.DC: "tall",
 }
 
 

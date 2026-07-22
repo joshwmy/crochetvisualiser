@@ -1,0 +1,41 @@
+// Grammar for one section's instruction body, AFTER normalize.py has:
+//   - lowercased the line,
+//   - collapsed known multi-word phrases into single canonical tokens
+//     (e.g. "half double crochet" -> "hdc", "in each stitch around" ->
+//     "ineachstitcharound"),
+//   - split off the "Round N:" / "Rows N-M:" header,
+//   - stripped a trailing declared count ([18] / (18) / 18 sts).
+//
+// This grammar only has to parse the remaining instruction list — see
+// docs/written-pattern-grammar.md for the full design rationale and why
+// count/header extraction happens in normalize.py (controlled regex
+// preprocessing) rather than here (grammar-backed structural parsing).
+
+start: instruction_list
+
+instruction_list: instruction ("," instruction)*
+
+?instruction: repeat_instruction
+            | stitch_around_instruction
+            | group
+            | stitch_instruction
+
+repeat_instruction: group "repeat" NUMBER "times"
+
+stitch_around_instruction: stitch_instruction around_phrase
+
+around_phrase: "ineachstitcharound" -> each_stitch_around
+             | "around"             -> plain_around
+
+group: "(" instruction_list ")"
+
+stitch_instruction: NUMBER? STITCH_WORD in_magic_ring?
+
+in_magic_ring: "in" "magicring"
+
+STITCH_WORD: "sc" | "hdc" | "dc" | "chain" | "slipstitch" | "inc" | "dec"
+
+NUMBER: /[0-9]+/
+
+%import common.WS
+%ignore WS
