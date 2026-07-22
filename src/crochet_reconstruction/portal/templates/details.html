@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="step-indicator">Step 2 of 5 &mdash; Project details</div>
+<h2>Tell us about the project</h2>
+<p>If you're not sure about something, choose "Unknown" — please don't guess.</p>
+
+{% if errors %}
+  <div class="alert error">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <label for="name_or_description">Project name or short description <span class="optional-tag">(optional)</span></label>
+  <input type="text" id="name_or_description" name="name_or_description" value="{{ form.name_or_description or '' }}">
+
+  <label for="project_category">What kind of project is this?</label>
+  <select id="project_category" name="project_category" required>
+    <option value="beanie" {{ 'selected' if form.project_category == 'beanie' }}>Beanie / hat</option>
+    <option value="stitch_swatch" {{ 'selected' if form.project_category == 'stitch_swatch' }}>Stitch swatch</option>
+    <option value="other" {{ 'selected' if form.project_category == 'other' }}>Other</option>
+  </select>
+
+  <label for="craft_type">Craft type</label>
+  <select id="craft_type" name="craft_type">
+    <option value="crochet" {{ 'selected' if form.craft_type == 'crochet' }}>Crochet</option>
+    <option value="knitting" {{ 'selected' if form.craft_type == 'knitting' }}>Knitting</option>
+    <option value="unknown" {{ 'selected' if not form or form.craft_type == 'unknown' }}>Unknown</option>
+  </select>
+
+  {% macro tristate(field_name, label_text, current) %}
+  <label>{{ label_text }}</label>
+  <div class="radio-group">
+    <label><input type="radio" name="{{ field_name }}" value="yes" {{ 'checked' if current == 'yes' }}> Yes</label>
+    <label><input type="radio" name="{{ field_name }}" value="no" {{ 'checked' if current == 'no' }}> No</label>
+    <label><input type="radio" name="{{ field_name }}" value="unknown" {{ 'checked' if not current or current == 'unknown' }}> Unknown</label>
+  </div>
+  {% endmacro %}
+
+  {{ tristate('made_by_contributor', 'Did you make this project yourself?', form.made_by_contributor) }}
+  {{ tristate('used_existing_pattern', 'Did you follow an existing pattern?', form.used_existing_pattern) }}
+  {{ tristate('pattern_owned_by_contributor', 'If so, do you own that pattern?', form.pattern_owned_by_contributor) }}
+
+  <label for="construction_direction">Construction direction</label>
+  <select id="construction_direction" name="construction_direction">
+    <option value="top_down" {{ 'selected' if form.construction_direction == 'top_down' }}>Top-down</option>
+    <option value="bottom_up" {{ 'selected' if form.construction_direction == 'bottom_up' }}>Bottom-up</option>
+    <option value="unknown" {{ 'selected' if not form or form.construction_direction == 'unknown' }}>Unknown</option>
+  </select>
+
+  <label for="worked_in">Worked in</label>
+  <select id="worked_in" name="worked_in">
+    <option value="rows" {{ 'selected' if form.worked_in == 'rows' }}>Rows</option>
+    <option value="rounds" {{ 'selected' if form.worked_in == 'rounds' }}>Rounds</option>
+    <option value="unknown" {{ 'selected' if not form or form.worked_in == 'unknown' }}>Unknown</option>
+  </select>
+
+  <label for="round_style">If worked in rounds: continuous or joined?</label>
+  <select id="round_style" name="round_style">
+    <option value="continuous" {{ 'selected' if form.round_style == 'continuous' }}>Continuous (spiral)</option>
+    <option value="joined" {{ 'selected' if form.round_style == 'joined' }}>Joined (slip-stitch)</option>
+    <option value="unknown" {{ 'selected' if not form or form.round_style == 'unknown' }}>Unknown</option>
+  </select>
+
+  <label>Known stitch families <span class="optional-tag">(choose all that apply)</span></label>
+  <div class="checkbox-row">
+    {% for code, label in [('sc','Single crochet'), ('hdc','Half-double crochet'), ('dc','Double crochet'), ('other','Other'), ('unknown','Unknown')] %}
+    <label style="font-weight:400; margin-right:1rem;">
+      <input type="checkbox" name="stitch_families" value="{{ code }}"
+        {{ 'checked' if form.stitch_families and code in form.stitch_families }}> {{ label }}
+    </label>
+    {% endfor %}
+  </div>
+
+  <label for="component_notes">Brim, seam, join, or component notes <span class="optional-tag">(optional)</span></label>
+  <textarea id="component_notes" name="component_notes">{{ form.component_notes or '' }}</textarea>
+
+  <label for="free_text_notes">Anything else you'd like to tell us? <span class="optional-tag">(optional)</span></label>
+  <textarea id="free_text_notes" name="free_text_notes">{{ form.free_text_notes or '' }}</textarea>
+
+  <div class="actions">
+    <button type="submit">Save and continue</button>
+  </div>
+</form>
+{% endblock %}

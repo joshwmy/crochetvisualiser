@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="/admin/pending">&larr; Back to pending</a></p>
+<h2>{{ project.submission_reference }}
+  <span class="pill {{ project.status.value }}">{{ project.status.value.replace('_', ' ') }}</span></h2>
+
+<h3>Contributor-provided details</h3>
+<table>
+  <tr><td>Name/description</td><td>{{ project.name_or_description or '(none)' }}</td></tr>
+  <tr><td>Craft type</td><td>{{ project.craft_type.value }}</td></tr>
+  <tr><td>Category</td><td>{{ project.project_category.value }}</td></tr>
+  <tr><td>Made by contributor</td><td>{{ project.made_by_contributor.value }}</td></tr>
+  <tr><td>Used existing pattern</td><td>{{ project.used_existing_pattern.value }}</td></tr>
+  <tr><td>Pattern owned by contributor</td><td>{{ project.pattern_owned_by_contributor.value }}</td></tr>
+  <tr><td>Construction direction</td><td>{{ project.construction_direction.value }}</td></tr>
+  <tr><td>Worked in</td><td>{{ project.worked_in.value }}</td></tr>
+  <tr><td>Round style</td><td>{{ project.round_style.value }}</td></tr>
+  <tr><td>Stitch families</td><td>{{ project.stitch_families|join(', ') or '(none)' }}</td></tr>
+  <tr><td>Component notes</td><td>{{ project.component_notes or '(none)' }}</td></tr>
+  <tr><td>Free-text notes</td><td>{{ project.free_text_notes or '(none)' }}</td></tr>
+</table>
+
+{% if project.metadata_ %}
+<h3>Materials, gauge, measurements (contributor-provided)</h3>
+<table>
+  <tr><td>Yarn</td><td>{{ project.metadata_.yarn_brand or '' }} {{ project.metadata_.yarn_name or '' }}</td></tr>
+  <tr><td>Fibre / weight</td><td>{{ project.metadata_.fibre or '?' }} / {{ project.metadata_.yarn_weight or '?' }}</td></tr>
+  <tr><td>Hook (mm)</td><td>{{ project.metadata_.hook_mm or 'unknown' }}</td></tr>
+  <tr><td>Gauge</td><td>{{ project.metadata_.stitches_per_10cm or '?' }} sts / {{ project.metadata_.rounds_per_10cm or '?' }} rows per 10cm ({{ project.metadata_.gauge_blocking_state.value }})</td></tr>
+  <tr><td>Relaxed circumference</td><td>{{ project.metadata_.relaxed_circumference_cm or 'unknown' }} cm</td></tr>
+  <tr><td>Total height</td><td>{{ project.metadata_.total_height_cm or 'unknown' }} cm</td></tr>
+</table>
+{% endif %}
+
+<h3>Consent summary</h3>
+{% if project.consent %}
+<table>
+  <tr><td>Identifier</td><td>{{ project.consent.contributor_provided_identifier }}</td></tr>
+  <tr><td>Consent version</td><td>{{ project.consent.consent_version }}</td></tr>
+  <tr><td>Consented at</td><td>{{ project.consent.consented_at }}</td></tr>
+  <tr><td>Owns photographs</td><td>{{ project.consent.owns_photographs }}</td></tr>
+  <tr><td>Research/evaluation use</td><td>{{ project.consent.research_evaluation_use }}</td></tr>
+  <tr><td>Product development use</td><td>{{ project.consent.product_development_use }}</td></tr>
+  <tr><td>Model training use</td><td>{{ project.consent.model_training_use }}</td></tr>
+  <tr><td>Public demonstration use</td><td>{{ project.consent.public_demonstration_use }}</td></tr>
+  <tr><td>Contact for missing details</td><td>{{ project.consent.contact_for_missing_details }}</td></tr>
+  <tr><td>Attribution</td><td>{{ project.consent.attribution_preference.value }} ({{ project.consent.attribution_text or '' }})</td></tr>
+  <tr><td>Withdrawn at</td><td>{{ project.consent.withdrawn_at or 'not withdrawn' }}</td></tr>
+</table>
+{% else %}
+<p>No consent recorded yet.</p>
+{% endif %}
+
+<h3>Photos ({{ project.images|length }})</h3>
+<div class="image-grid">
+  {% for image in project.images %}
+  <figure>
+    <img src="/admin/projects/{{ project.submission_reference }}/images/{{ image.id }}/preview" alt="{{ image.image_type.value }}">
+    <figcaption>
+      {{ image.image_type.value.replace('_', ' ') }}<br>
+      {{ image.width }}x{{ image.height }} {{ image.image_format }}
+      {% if image.duplicate_of_image_id %}<br><strong>possible duplicate</strong>{% endif %}
+    </figcaption>
+  </figure>
+  {% endfor %}
+</div>
+
+<h3>Review decisions so far (reviewer-confirmed values)</h3>
+{% if project.review_decisions %}
+<table>
+  <tr><th>When</th><th>Decision</th><th>Verified craft/category</th><th>Verified stitches</th><th>Reason</th></tr>
+  {% for d in project.review_decisions|sort(attribute='created_at', reverse=true) %}
+  <tr>
+    <td>{{ d.created_at }}</td>
+    <td>{{ d.decision.value }}</td>
+    <td>{{ d.verified_craft_type.value if d.verified_craft_type else '' }} / {{ d.verified_project_category.value if d.verified_project_category else '' }}</td>
+    <td>{{ d.verified_stitch_labels|join(', ') if d.verified_stitch_labels else '' }}</td>
+    <td>{{ d.reason or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No review decisions yet.</p>
+{% endif %}
+
+<h3>Take an action</h3>
+{% if project.status.value == 'submitted' %}
+<form method="post" action="/admin/projects/{{ project.submission_reference }}/start-review">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Start review</button>
+</form>
+{% endif %}
+
+{% if project.status.value in ('under_review', 'approved') %}
+<form method="post" action="/admin/projects/{{ project.submission_reference }}/decision">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="decision">Decision</label>
+  <select id="decision" name="decision">
+    <option value="approve">Approve</option>
+    <option value="changes_requested">Request changes</option>
+    <option value="reject">Reject</option>
+    <option value="note">Record note / update verified labels only</option>
+  </select>
+  <label for="verified_craft_type">Verified craft type</label>
+  <select id="verified_craft_type" name="verified_craft_type">
+    <option value="">(unchanged)</option>
+    <option value="crochet">Crochet</option>
+    <option value="knitting">Knitting</option>
+    <option value="unknown">Unknown</option>
+  </select>
+  <label for="verified_project_category">Verified project category</label>
+  <select id="verified_project_category" name="verified_project_category">
+    <option value="">(unchanged)</option>
+    <option value="beanie">Beanie</option>
+    <option value="stitch_swatch">Stitch swatch</option>
+    <option value="other">Other</option>
+  </select>
+  <label for="verified_stitch_labels">Verified stitch labels (comma separated)</label>
+  <input type="text" id="verified_stitch_labels" name="verified_stitch_labels" placeholder="sc, hdc">
+  <label for="data_quality_status">Data quality status</label>
+  <select id="data_quality_status" name="data_quality_status">
+    <option value="">(unchanged)</option>
+    <option value="ok">OK</option>
+    <option value="needs_review">Needs review</option>
+    <option value="excluded">Excluded</option>
+  </select>
+  <label for="reason">Reason / notes</label>
+  <textarea id="reason" name="reason"></textarea>
+  <div class="actions"><button type="submit">Save decision</button></div>
+</form>
+{% endif %}
+
+<h3>Physical-trial link</h3>
+{% if project.trial_links %}
+<table>
+  <tr><th>Trial</th><th>Fingerprint</th><th>Result ID</th><th>Validated</th></tr>
+  {% for link in project.trial_links %}
+  <tr><td>{{ link.trial_id }}</td><td>{{ link.pattern_fingerprint[:12] }}&hellip;</td><td>{{ link.physical_result_id or '' }}</td><td>{{ link.validated }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<form method="post" action="/admin/projects/{{ project.submission_reference }}/link-trial">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="trial_id">Trial ID</label>
+  <input type="text" id="trial_id" name="trial_id" placeholder="BV-001">
+  <label for="pattern_fingerprint">Pattern fingerprint</label>
+  <input type="text" id="pattern_fingerprint" name="pattern_fingerprint">
+  <label for="physical_result_id">Physical result ID <span class="optional-tag">(optional)</span></label>
+  <input type="text" id="physical_result_id" name="physical_result_id">
+  <div class="actions"><button type="submit" class="secondary">Link trial</button></div>
+</form>
+
+<h3>Withdrawal and deletion</h3>
+<form method="post" action="/admin/projects/{{ project.submission_reference }}/withdraw" style="display:inline-block; margin-right:1rem;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="reason" value="withdrawn by administrator">
+  <button type="submit" class="secondary">Withdraw</button>
+</form>
+<form method="post" action="/admin/projects/{{ project.submission_reference }}/delete" style="display:inline-block;"
+      onsubmit="return confirm('Permanently delete this contributor\'s photos and free-text answers? This cannot be undone.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="secondary">Delete data permanently</button>
+</form>
+
+<h3>Audit history</h3>
+<table>
+  <tr><th>When</th><th>Actor</th><th>Event</th><th>Detail</th></tr>
+  {% for e in audit_events %}
+  <tr><td>{{ e.created_at }}</td><td>{{ e.actor }}</td><td>{{ e.event_type }}</td><td>{{ e.detail or '' }}</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

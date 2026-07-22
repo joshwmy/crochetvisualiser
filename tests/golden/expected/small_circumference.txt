@@ -1,0 +1,72 @@
+# Small Circumference HDC Beanie
+
+This is an original, deterministically generated reconstruction. It is not a recovered designer pattern. Make and measure a gauge swatch before beginning.
+
+## Materials and assumptions
+- Body stitch: half double crochet (hdc), US terminology
+- Construction: continuous rounds
+- Template: top_down_basic@1.0.0
+
+## Gauge
+- 18.0 hdc and 14.0 rounds per 10 cm
+
+## Finished measurements
+- Head circumference (input): 42.0 cm
+- Negative ease: 6.0%
+- Target finished circumference: 39.480 cm
+- Body stitch count: 72 (raw gauge calculation: 71.06, dimensional deviation: 0.52 cm)
+- Target height: 18.0 cm
+- Brim height: 3.0 cm
+
+## Abbreviations
+- hdc = half double crochet
+- st(s) = stitch(es)
+- MR = magic ring
+- inc = increase
+
+## Construction notes
+- Worked in continuous spiral rounds (no slip-stitch join). Use a stitch marker to track the start of each round.
+
+## Crown
+Round 1: Work 8 hdc into an adjustable (magic) ring. (8)
+Round 2: *2 hdc in next st* around (8 times). (16)
+Round 3: *hdc in next 1 st, 2 hdc in next st* around (8 times). (24)
+Round 4: *hdc in next 2 sts, 2 hdc in next st* around (8 times). (32)
+Round 5: *hdc in next 3 sts, 2 hdc in next st* around (8 times). (40)
+Round 6: *hdc in next 4 sts, 2 hdc in next st* around (8 times). (48)
+Round 7: *hdc in next 5 sts, 2 hdc in next st* around (8 times). (56)
+Round 8: *hdc in next 6 sts, 2 hdc in next st* around (8 times). (64)
+Round 9: *hdc in next 7 sts, 2 hdc in next st* around (8 times). (72)
+
+## Body
+Round 10: Hdc in next 72 sts. (72)
+Round 11: Hdc in next 72 sts. (72)
+Round 12: Hdc in next 72 sts. (72)
+Round 13: Hdc in next 72 sts. (72)
+Round 14: Hdc in next 72 sts. (72)
+Round 15: Hdc in next 72 sts. (72)
+Round 16: Hdc in next 72 sts. (72)
+Round 17: Hdc in next 72 sts. (72)
+Round 18: Hdc in next 72 sts. (72)
+Round 19: Hdc in next 72 sts. (72)
+Round 20: Hdc in next 72 sts. (72)
+Round 21: Hdc in next 72 sts. (72)
+
+## Brim
+Round 22: Hdc in next 72 sts (back loop only). (72)
+Round 23: Hdc in next 72 sts (back loop only). (72)
+Round 24: Hdc in next 72 sts (back loop only). (72)
+Round 25: Hdc in next 72 sts (back loop only). (72)
+
+## Validation status
+- Status: valid
+- Engine version: 0.1.0
+
+## Assumptions
+- gauge.stitch_family = hdc [user_confirmed]
+- construction = continuous_rounds [user_confirmed]
+- negative_ease_pct = 6.0 [user_confirmed]
+- calculated.target_circumference_cm = 39.480 [derived] (C_t = H * (1 - ease); see docs/mathematical-assumptions.md)
+- calculated.repeat_multiple = 8 [derived] (Nearest template-approved schedule to k = 2*pi*g_s/g_r)
+
+Pattern fingerprint: d599eefa9b0ff95574335fdc93c6c2716be34249305614f8de3d1f1da77fe17c

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="step-indicator">Step 4 of 5 &mdash; Photos</div>
+<h2>Upload your photos</h2>
+<p>Accepted formats: JPEG, PNG, WebP. Up to {{ max_images }} photos total.</p>
+
+{% if uploaded_images %}
+<h3>Uploaded so far</h3>
+<div class="image-grid">
+  {% for image in uploaded_images %}
+  <figure>
+    <img src="/contributor/project/{{ project_ref }}/images/{{ image.id }}/preview" alt="{{ image.image_type.value }}">
+    <figcaption>
+      {{ image.image_type.value.replace('_', ' ') }}
+      {% if image.duplicate_of_image_id %}<br><em>possible duplicate</em>{% endif %}
+      <form method="post" action="/contributor/project/{{ project_ref }}/images/{{ image.id }}/delete" style="margin-top:0.3rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;">Remove</button>
+      </form>
+    </figcaption>
+  </figure>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h3>Required</h3>
+{% for image_type, label, description in required_slots %}
+<form method="post" action="/contributor/project/{{ project_ref }}/images/upload" enctype="multipart/form-data" style="margin-bottom:1rem;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="image_type" value="{{ image_type }}">
+  <label for="file_{{ image_type }}">{{ label }} {% if image_type in have_types %}&#10003;{% endif %}</label>
+  <div class="hint">{{ description }}</div>
+  <input type="file" id="file_{{ image_type }}" name="file" accept="image/jpeg,image/png,image/webp" required>
+  <button type="submit" class="secondary">Upload</button>
+</form>
+{% endfor %}
+
+<h3>Recommended</h3>
+{% for image_type, label, description in recommended_slots %}
+<form method="post" action="/contributor/project/{{ project_ref }}/images/upload" enctype="multipart/form-data" style="margin-bottom:1rem;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="image_type" value="{{ image_type }}">
+  <label for="file_{{ image_type }}">{{ label }} {% if image_type in have_types %}&#10003;{% endif %}</label>
+  <div class="hint">{{ description }}</div>
+  <input type="file" id="file_{{ image_type }}" name="file" accept="image/jpeg,image/png,image/webp">
+  <button type="submit" class="secondary">Upload</button>
+</form>
+{% endfor %}
+
+<div class="actions">
+  <a class="button" href="/contributor/project/{{ project_ref }}/review">Continue to review</a>
+</div>
+{% endblock %}

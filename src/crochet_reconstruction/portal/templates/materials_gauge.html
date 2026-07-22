@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="step-indicator">Step 3 of 5 &mdash; Materials, gauge, and measurements</div>
+<h2>What you know about materials and size</h2>
+<p>Every field on this page is optional. Leave anything blank if you don't
+   know it — please don't guess.</p>
+
+{% if errors %}
+  <div class="alert error">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <fieldset>
+    <legend>Materials</legend>
+    <label for="yarn_brand">Yarn brand</label>
+    <input type="text" id="yarn_brand" name="yarn_brand" value="{{ form.yarn_brand or '' }}">
+    <label for="yarn_name">Yarn name</label>
+    <input type="text" id="yarn_name" name="yarn_name" value="{{ form.yarn_name or '' }}">
+    <label for="fibre">Fibre</label>
+    <input type="text" id="fibre" name="fibre" value="{{ form.fibre or '' }}">
+    <label for="yarn_weight">Yarn weight (e.g. DK, worsted)</label>
+    <input type="text" id="yarn_weight" name="yarn_weight" value="{{ form.yarn_weight or '' }}">
+    <label for="colour">Colour</label>
+    <input type="text" id="colour" name="colour" value="{{ form.colour or '' }}">
+    <label for="hook_mm">Hook size (millimetres)</label>
+    <input type="number" step="0.25" id="hook_mm" name="hook_mm" value="{{ form.hook_mm or '' }}">
+    <label for="strands_held">Number of strands held together</label>
+    <input type="number" step="1" min="1" id="strands_held" name="strands_held" value="{{ form.strands_held or '' }}">
+    <div class="checkbox-row">
+      <input type="checkbox" id="substitutions_made" name="substitutions_made" value="true"
+        {{ 'checked' if form.substitutions_made }}>
+      <label for="substitutions_made">I substituted yarn or hook from what a pattern called for.</label>
+    </div>
+    <label for="materials_notes">Materials notes</label>
+    <textarea id="materials_notes" name="materials_notes">{{ form.materials_notes or '' }}</textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>Gauge</legend>
+    <label for="stitches_per_10cm">Stitches per 10 cm</label>
+    <input type="number" step="0.1" id="stitches_per_10cm" name="stitches_per_10cm" value="{{ form.stitches_per_10cm or '' }}">
+    <label for="rounds_per_10cm">Rows or rounds per 10 cm</label>
+    <input type="number" step="0.1" id="rounds_per_10cm" name="rounds_per_10cm" value="{{ form.rounds_per_10cm or '' }}">
+    <label for="gauge_blocking_state">Was gauge measured before or after washing/blocking?</label>
+    <select id="gauge_blocking_state" name="gauge_blocking_state">
+      <option value="before_blocking" {{ 'selected' if form.gauge_blocking_state == 'before_blocking' }}>Before blocking</option>
+      <option value="after_blocking" {{ 'selected' if form.gauge_blocking_state == 'after_blocking' }}>After blocking</option>
+      <option value="unknown" {{ 'selected' if not form or form.gauge_blocking_state == 'unknown' }}>Unknown</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Finished measurements</legend>
+    <label for="relaxed_circumference_cm">Relaxed circumference (cm)</label>
+    <input type="number" step="0.1" id="relaxed_circumference_cm" name="relaxed_circumference_cm" value="{{ form.relaxed_circumference_cm or '' }}">
+    <label for="stretched_circumference_cm">Stretched circumference (cm)</label>
+    <input type="number" step="0.1" id="stretched_circumference_cm" name="stretched_circumference_cm" value="{{ form.stretched_circumference_cm or '' }}">
+    <label for="total_height_cm">Total height (cm)</label>
+    <input type="number" step="0.1" id="total_height_cm" name="total_height_cm" value="{{ form.total_height_cm or '' }}">
+    <label for="crown_diameter_cm">Crown diameter (cm)</label>
+    <input type="number" step="0.1" id="crown_diameter_cm" name="crown_diameter_cm" value="{{ form.crown_diameter_cm or '' }}">
+    <label for="brim_height_cm">Brim height (cm)</label>
+    <input type="number" step="0.1" id="brim_height_cm" name="brim_height_cm" value="{{ form.brim_height_cm or '' }}">
+    <label for="swatch_flat_width_cm">Swatch flat width (cm) <span class="optional-tag">(for swatches)</span></label>
+    <input type="number" step="0.1" id="swatch_flat_width_cm" name="swatch_flat_width_cm" value="{{ form.swatch_flat_width_cm or '' }}">
+    <label for="swatch_flat_height_cm">Swatch flat height (cm) <span class="optional-tag">(for swatches)</span></label>
+    <input type="number" step="0.1" id="swatch_flat_height_cm" name="swatch_flat_height_cm" value="{{ form.swatch_flat_height_cm or '' }}">
+    <label for="measurement_notes">Measurement notes</label>
+    <textarea id="measurement_notes" name="measurement_notes">{{ form.measurement_notes or '' }}</textarea>
+  </fieldset>
+
+  <div class="actions">
+    <button type="submit">Save and continue</button>
+  </div>
+</form>
+{% endblock %}

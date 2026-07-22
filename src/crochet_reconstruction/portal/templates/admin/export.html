@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Export approved dataset</h2>
+<p>Exports every currently-approved, non-withdrawn project's metadata and
+   preview images. Withdrawn projects are always excluded automatically.</p>
+<form method="post" action="/admin/export">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Run export</button>
+</form>
+<p><a href="/admin/pending">Back to pending submissions</a></p>
+{% endblock %}

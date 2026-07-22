@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Pending submissions</h2>
+<p><a href="/admin/export">Export approved dataset</a></p>
+{% if not projects %}
+<p>Nothing waiting for review.</p>
+{% else %}
+<table>
+  <tr><th>Reference</th><th>Category</th><th>Status</th><th>Submitted</th><th></th></tr>
+  {% for p in projects %}
+  <tr>
+    <td>{{ p.submission_reference }}</td>
+    <td>{{ p.project_category.value }}</td>
+    <td><span class="pill {{ p.status.value }}">{{ p.status.value.replace('_', ' ') }}</span></td>
+    <td>{{ p.submitted_at }}</td>
+    <td><a class="button secondary" href="/admin/projects/{{ p.submission_reference }}">Review</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/crochet-reconstruction/experiments/crochet_vs_knitting/dataset-schema.json",
+  "title": "CrochetVsKnittingImageRecord",
+  "description": "One labelled image record for the crochet-vs-knitting classification experiment. Not implemented as a Pydantic model yet - this is the design-time schema; a typed loader may be added when data collection actually begins.",
+  "type": "object",
+  "required": [
+    "record_id",
+    "object_id",
+    "image_filename",
+    "class_label",
+    "view_type",
+    "capture",
+    "annotation",
+    "provenance"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "description": "Unique ID for this specific image (one physical object may have many record_ids)."
+    },
+    "object_id": {
+      "type": "string",
+      "description": "Unique ID for the physical object photographed. THE grouping key for train/test splitting - see split-policy.md. Every image of the same physical beanie/swatch/garment must share this ID."
+    },
+    "image_filename": {
+      "type": "string"
+    },
+    "class_label": {
+      "type": "string",
+      "enum": ["crochet", "knitting", "woven", "machine_made_crochet_like", "uncertain"],
+      "description": "'uncertain' is a first-class label, not a missing value - use it whenever a confident human annotator would not commit to one of the other four."
+    },
+    "view_type": {
+      "type": "string",
+      "enum": ["macro", "full_object"],
+      "description": "macro = close enough to see individual stitch structure (target: >=20px across an average stitch); full_object = whole item visible."
+    },
+    "capture": {
+      "type": "object",
+      "required": ["device_type", "resolution_px", "lighting_condition", "focus_quality", "yarn_colour_category"],
+      "properties": {
+        "device_type": {
+          "type": "string",
+          "description": "e.g. 'smartphone_rear', 'smartphone_front', 'dslr', 'scanner'. Free text, not an enum - device diversity is a coverage axis, not a constraint."
+        },
+        "resolution_px": {
+          "type": "object",
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "lighting_condition": {
+          "type": "string",
+          "enum": ["daylight", "indoor_bright", "indoor_dim", "mixed", "flash"]
+        },
+        "focus_quality": {
+          "type": "string",
+          "enum": ["sharp", "slightly_soft", "blurry"],
+          "description": "Blurry examples must be deliberately included, not filtered out - see annotation-guide.md."
+        },
+        "yarn_colour_category": {
+          "type": "string",
+          "enum": ["light_solid", "dark_solid", "variegated", "multicolour_stripes", "fuzzy_low_contrast", "other"],
+          "description": "'fuzzy_low_contrast' covers mohair/eyelash-type yarns where stitch definition is inherently hard to see regardless of focus."
+        },
+        "distance_category": {
+          "type": "string",
+          "enum": ["close_macro", "arm_length", "distant"],
+          "description": "Optional. Distant examples stress-test the classifier's honest use of the uncertain class."
+        }
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "required": ["annotator_id", "confidence"],
+      "properties": {
+        "annotator_id": { "type": "string" },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "The ANNOTATOR's confidence in their own label, independent of any model's later confidence score."
+        },
+        "second_annotator_id": {
+          "type": ["string", "null"],
+          "description": "Populated only for the inter-annotator-agreement sample - see annotation-guide.md."
+        },
+        "second_annotator_label": {
+          "type": ["string", "null"],
+          "enum": ["crochet", "knitting", "woven", "machine_made_crochet_like", "uncertain", null]
+        },
+        "disagreement_resolved_by": {
+          "type": ["string", "null"],
+          "description": "Adjudicator ID, only populated if the two annotators disagreed."
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_type", "consent_reference"],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["own_capture", "licensed_dataset", "public_domain_dataset"],
+          "description": "Per the source decision package's licence audit, a licensed dataset entry (e.g. CrochetBench, CC BY-NC 4.0) must record its licence terms in license_note and must not be treated as commercially reusable without separate review."
+        },
+        "license_note": {
+          "type": ["string", "null"]
+        },
+        "consent_reference": {
+          "type": "string",
+          "description": "Pointer to a consent record for own_capture images. Required and non-null when source_type is own_capture."
+        }
+      }
+    },
+    "split": {
+      "type": "string",
+      "enum": ["train", "val", "test", "unassigned"],
+      "default": "unassigned",
+      "description": "Assigned by the split-generation process (split-policy.md), never by the annotator. All images sharing an object_id must have the same split value."
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "project": {"project_id": "golden-simple-brim", "title": "Simple Brim SC Beanie"},
+  "terminology": "US",
+  "template": {"id": "top_down_basic", "version": "1.0.0"},
+  "measurements": {
+    "head_circumference_cm": "50.0",
+    "target_height_cm": "18.0",
+    "brim_height_cm": "3.0"
+  },
+  "gauge": {
+    "stitch_family": "sc",
+    "stitches_per_10cm": "16.0",
+    "rounds_per_10cm": "16.0"
+  },
+  "negative_ease_pct": "5.0",
+  "construction": "continuous_rounds",
+  "brim_type": "blo_in_round"
+}

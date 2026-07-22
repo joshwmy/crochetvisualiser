@@ -1,0 +1,18 @@
+{
+  "project": {"project_id": "adult-beanie-hdc-medium", "title": "Adult Medium HDC Beanie"},
+  "terminology": "US",
+  "template": {"id": "top_down_basic", "version": "1.0.0"},
+  "measurements": {
+    "head_circumference_cm": "56.0",
+    "target_height_cm": "21.0",
+    "brim_height_cm": "4.0"
+  },
+  "gauge": {
+    "stitch_family": "hdc",
+    "stitches_per_10cm": "16.0",
+    "rounds_per_10cm": "12.0"
+  },
+  "negative_ease_pct": "8.0",
+  "construction": "continuous_rounds",
+  "brim_type": "blo_in_round"
+}

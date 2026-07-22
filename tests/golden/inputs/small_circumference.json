@@ -1,0 +1,18 @@
+{
+  "project": {"project_id": "golden-small-circumference", "title": "Small Circumference HDC Beanie"},
+  "terminology": "US",
+  "template": {"id": "top_down_basic", "version": "1.0.0"},
+  "measurements": {
+    "head_circumference_cm": "42.0",
+    "target_height_cm": "18.0",
+    "brim_height_cm": "3.0"
+  },
+  "gauge": {
+    "stitch_family": "hdc",
+    "stitches_per_10cm": "18.0",
+    "rounds_per_10cm": "14.0"
+  },
+  "negative_ease_pct": "6.0",
+  "construction": "continuous_rounds",
+  "brim_type": "blo_in_round"
+}

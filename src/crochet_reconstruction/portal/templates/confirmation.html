@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Thank you!</h2>
+<p>Your submission has been received.</p>
+<p><strong>Your reference:</strong> {{ project.submission_reference }}</p>
+<p>Please keep this reference in case you need to contact us about this
+   submission. An administrator will review it; you don't need to do
+   anything else right now.</p>
+<a class="button" href="/contributor/projects">Back to my projects</a>
+{% endblock %}

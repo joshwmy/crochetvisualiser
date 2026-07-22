@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="step-indicator">Step 1 of 5 &mdash; Consent</div>
+<h2>Your permissions</h2>
+<p>Please choose separately for each use below. You can agree to some and
+   not others — for example, you can allow us to use your project for
+   product testing while refusing model training.</p>
+
+{% if errors %}
+  <div class="alert error">
+    {% for e in errors %}<div>{{ e }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <fieldset>
+    <legend>Required</legend>
+    <div class="checkbox-row">
+      <input type="checkbox" id="owns_photographs" name="owns_photographs" value="true"
+             {{ 'checked' if form.owns_photographs }}>
+      <label for="owns_photographs">I own these photographs, or I have the
+        owner's permission to submit them.</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="privacy_notice_accepted" name="privacy_notice_accepted" value="true"
+             {{ 'checked' if form.privacy_notice_accepted }}>
+      <label for="privacy_notice_accepted">I have read and accept the
+        <a href="/privacy" target="_blank">privacy notice</a> (version {{ consent_version }}).</label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Optional permissions</legend>
+    <div class="checkbox-row">
+      <input type="checkbox" id="research_evaluation_use" name="research_evaluation_use" value="true"
+             {{ 'checked' if form.research_evaluation_use }}>
+      <label for="research_evaluation_use">Use my project for research and
+        evaluation of the pattern engine.</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="product_development_use" name="product_development_use" value="true"
+             {{ 'checked' if form.product_development_use }}>
+      <label for="product_development_use">Use my project for general
+        product development.</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="model_training_use" name="model_training_use" value="true"
+             {{ 'checked' if form.model_training_use }}>
+      <label for="model_training_use">Use my photographs to train a
+        machine-learning / AI model in the future.</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="public_demonstration_use" name="public_demonstration_use" value="true"
+             {{ 'checked' if form.public_demonstration_use }}>
+      <label for="public_demonstration_use">Allow my project to be shown
+        publicly as a demonstration (e.g. in a presentation).</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="contact_for_missing_details" name="contact_for_missing_details" value="true"
+             {{ 'checked' if form.contact_for_missing_details }}>
+      <label for="contact_for_missing_details">You may contact me if
+        details are missing from this submission.</label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Attribution</legend>
+    <label>If we ever credit contributors, how should we refer to you?</label>
+    <div class="radio-group">
+      <label><input type="radio" name="attribution_preference" value="anonymous"
+        {{ 'checked' if not form or form.attribution_preference == 'anonymous' }}> Don't credit me (anonymous)</label>
+      <label><input type="radio" name="attribution_preference" value="handle_or_first_name"
+        {{ 'checked' if form.attribution_preference == 'handle_or_first_name' }}> Use my nickname/first name</label>
+      <label><input type="radio" name="attribution_preference" value="full_name"
+        {{ 'checked' if form.attribution_preference == 'full_name' }}> Use my full name</label>
+    </div>
+    <label for="attribution_text">Name/handle to use <span class="optional-tag">(optional)</span></label>
+    <input type="text" id="attribution_text" name="attribution_text" value="{{ form.attribution_text or '' }}">
+  </fieldset>
+
+  <div class="actions">
+    <button type="submit">Save and continue</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="step-indicator">Step 5 of 5 &mdash; Review and submit</div>
+<h2>Review your submission</h2>
+
+{% if errors %}
+  <div class="alert error">
+    <div>Before you can submit, please add:</div>
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<p><strong>Reference:</strong> {{ project.submission_reference }}
+   &nbsp; <span class="pill {{ project.status.value }}">{{ project.status.value.replace('_', ' ') }}</span></p>
+
+<h3>Project</h3>
+<table>
+  <tr><td>Name/description</td><td>{{ project.name_or_description or '(none)' }}</td></tr>
+  <tr><td>Category</td><td>{{ project.project_category.value }}</td></tr>
+  <tr><td>Craft type</td><td>{{ project.craft_type.value }}</td></tr>
+</table>
+
+<h3>Photos ({{ project.images|length }})</h3>
+<div class="image-grid">
+  {% for image in project.images %}
+  <figure>
+    <img src="/contributor/project/{{ project.submission_reference }}/images/{{ image.id }}/preview" alt="{{ image.image_type.value }}">
+    <figcaption>{{ image.image_type.value.replace('_', ' ') }}</figcaption>
+  </figure>
+  {% endfor %}
+</div>
+
+<div class="actions">
+  <a class="button secondary" href="/contributor/project/{{ project.submission_reference }}/details">Edit details</a>
+  <a class="button secondary" href="/contributor/project/{{ project.submission_reference }}/images">Edit photos</a>
+</div>
+
+{% if project.status.value in ('draft', 'changes_requested') %}
+<form method="post" action="/contributor/project/{{ project.submission_reference }}/submit">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="actions">
+    <button type="submit">Submit this project</button>
+  </div>
+</form>
+{% else %}
+<p>This project has already been submitted and is now {{ project.status.value.replace('_', ' ') }}.</p>
+{% endif %}
+{% endblock %}

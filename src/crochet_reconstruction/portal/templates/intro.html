@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Welcome!</h2>
+{% if error %}
+<div class="alert error">This invitation link cannot be used: {{ error }}.</div>
+{% endif %}
+<p>Thank you for helping test this crochet pattern application.</p>
+<ul>
+  <li>We're building software that generates and checks crochet patterns
+      mathematically, and we're now studying real finished projects to see
+      how well that matches reality.</li>
+  <li>Your submission contributes to testing and product development —
+      it is not published or sold.</li>
+  <li>Incomplete or imperfect results are still useful. Please don't feel
+      you need a "perfect" project to submit.</li>
+  <li>Only upload photographs you own or have permission to use.</li>
+  <li>You can withdraw your consent and data at any time — see the privacy
+      notice for how.</li>
+  <li>Your images are private by default and are never shown publicly
+      unless you specifically agree to that.</li>
+</ul>
+
+{% if error %}
+  {# No valid invitation to act on - nothing further to show. #}
+{% elif existing_projects %}
+  <h3>Your projects</h3>
+  <table>
+    <tr><th>Reference</th><th>Status</th><th></th></tr>
+    {% for p in existing_projects %}
+    <tr>
+      <td>{{ p.submission_reference }}</td>
+      <td><span class="pill {{ p.status.value }}">{{ p.status.value.replace('_', ' ') }}</span></td>
+      <td>
+        {% if p.status.value in ('draft', 'changes_requested') %}
+          <a class="button secondary" href="/contributor/project/{{ p.submission_reference }}/consent">Continue</a>
+        {% else %}
+          <a class="button secondary" href="/contributor/project/{{ p.submission_reference }}/review">View</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form method="post" action="/invite/{{ token }}/new-project">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Start another project</button>
+  </form>
+{% else %}
+  <h3>Get started</h3>
+  <form method="post" action="/invite/{{ token }}/redeem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="display_identifier">What should we call you?</label>
+    <div class="hint">A nickname or first name is fine — this is not published.</div>
+    <input type="text" id="display_identifier" name="display_identifier" required
+           value="{{ form.display_identifier if form else '' }}">
+
+    {% if contact_email_collection_enabled %}
+    <label for="contact_email">Email address <span class="optional-tag">(optional)</span></label>
+    <div class="hint">Only used if we need to ask about missing details on this submission.</div>
+    <input type="email" id="contact_email" name="contact_email"
+           value="{{ form.contact_email if form else '' }}">
+    {% endif %}
+
+    <div class="actions">
+      <button type="submit">Start my submission</button>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

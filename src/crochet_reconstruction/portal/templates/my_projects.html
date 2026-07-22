@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Your projects</h2>
+<table>
+  <tr><th>Reference</th><th>Status</th><th></th></tr>
+  {% for p in existing_projects %}
+  <tr>
+    <td>{{ p.submission_reference }}</td>
+    <td><span class="pill {{ p.status.value }}">{{ p.status.value.replace('_', ' ') }}</span></td>
+    <td>
+      {% if p.status.value in ('draft', 'changes_requested') %}
+        <a class="button secondary" href="/contributor/project/{{ p.submission_reference }}/consent">Continue</a>
+      {% else %}
+        <a class="button secondary" href="/contributor/project/{{ p.submission_reference }}/review">View</a>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+<form method="post" action="/contributor/projects/new">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Start another project</button>
+</form>
+{% endblock %}

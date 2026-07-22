@@ -1,0 +1,71 @@
+# Large Circumference SC Beanie
+
+This is an original, deterministically generated reconstruction. It is not a recovered designer pattern. Make and measure a gauge swatch before beginning.
+
+## Materials and assumptions
+- Body stitch: single crochet (sc), US terminology
+- Construction: continuous rounds
+- Template: top_down_basic@1.0.0
+
+## Gauge
+- 12.0 sc and 10.0 rounds per 10 cm
+
+## Finished measurements
+- Head circumference (input): 64.0 cm
+- Negative ease: 10.0%
+- Target finished circumference: 57.60 cm
+- Body stitch count: 72 (raw gauge calculation: 69.12, dimensional deviation: 2.40 cm)
+- Target height: 22.0 cm
+- Brim height: 5.0 cm
+
+## Abbreviations
+- sc = single crochet
+- st(s) = stitch(es)
+- MR = magic ring
+- inc = increase
+
+## Construction notes
+- Worked in continuous spiral rounds (no slip-stitch join). Use a stitch marker to track the start of each round.
+
+## Crown
+Round 1: Work 8 sc into an adjustable (magic) ring. (8)
+Round 2: *2 sc in next st* around (8 times). (16)
+Round 3: *sc in next 1 st, 2 sc in next st* around (8 times). (24)
+Round 4: *sc in next 2 sts, 2 sc in next st* around (8 times). (32)
+Round 5: *sc in next 3 sts, 2 sc in next st* around (8 times). (40)
+Round 6: *sc in next 4 sts, 2 sc in next st* around (8 times). (48)
+Round 7: *sc in next 5 sts, 2 sc in next st* around (8 times). (56)
+Round 8: *sc in next 6 sts, 2 sc in next st* around (8 times). (64)
+Round 9: *sc in next 7 sts, 2 sc in next st* around (8 times). (72)
+
+## Body
+Round 10: Sc in next 72 sts. (72)
+Round 11: Sc in next 72 sts. (72)
+Round 12: Sc in next 72 sts. (72)
+Round 13: Sc in next 72 sts. (72)
+Round 14: Sc in next 72 sts. (72)
+Round 15: Sc in next 72 sts. (72)
+Round 16: Sc in next 72 sts. (72)
+Round 17: Sc in next 72 sts. (72)
+
+## Brim
+Round 18: Sc in next 72 sts (back loop only). (72)
+Round 19: Sc in next 72 sts (back loop only). (72)
+Round 20: Sc in next 72 sts (back loop only). (72)
+Round 21: Sc in next 72 sts (back loop only). (72)
+Round 22: Sc in next 72 sts (back loop only). (72)
+
+## Validation status
+- Status: valid
+- Engine version: 0.1.0
+- Warnings / notes:
+  - [warning] V-ROUNDING-001: repeat-compatible rounding changes target circumference by 4.17%
+
+## Assumptions
+- gauge.stitch_family = sc [user_confirmed]
+- construction = continuous_rounds [user_confirmed]
+- negative_ease_pct = 10.0 [user_confirmed]
+- calculated.target_circumference_cm = 57.60 [derived] (C_t = H * (1 - ease); see docs/mathematical-assumptions.md)
+- calculated.repeat_multiple = 8 [derived] (Nearest template-approved schedule to k = 2*pi*g_s/g_r)
+
+Pattern fingerprint: 3fdf36bd164a2766b665447f0f3c836627b2b7a0b458348c2383f8cc54930068

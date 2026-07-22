@@ -1,0 +1,194 @@
+:root {
+  color-scheme: light;
+  --ink: #2a2320;
+  --paper: #fdfaf6;
+  --accent: #a45c40;
+  --accent-dark: #7a4029;
+  --line: #e2d8cd;
+  --danger: #a3341f;
+  --danger-bg: #fbeae6;
+  --ok-bg: #eaf3e6;
+  --ok: #3a6b2a;
+  font-size: 17px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
+}
+
+header.site-header {
+  border-bottom: 3px solid var(--accent);
+  padding: 1rem;
+  background: white;
+}
+
+header.site-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+
+.step-indicator {
+  font-size: 0.9rem;
+  color: #766a5f;
+  margin-bottom: 0.5rem;
+}
+
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.hint {
+  font-weight: 400;
+  font-size: 0.88rem;
+  color: #6b5f54;
+  margin: 0.1rem 0 0.4rem;
+}
+
+.optional-tag {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #8a7c6d;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="file"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.65rem 0.6rem;
+  font-size: 1rem;
+  border: 1px solid #c9bdae;
+  border-radius: 6px;
+  background: white;
+  color: var(--ink);
+}
+
+textarea { min-height: 5rem; resize: vertical; }
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  font-weight: 400;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.checkbox-row label { margin: 0; font-weight: 400; }
+
+.radio-group { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin: 0.3rem 0 0.5rem; }
+.radio-group label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; margin: 0; }
+
+button, .button {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.4rem;
+  font-size: 1.05rem;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+button:hover, .button:hover { background: var(--accent-dark); }
+
+button.secondary, .button.secondary {
+  background: white;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+}
+
+.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; }
+
+.alert {
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.alert.error { background: var(--danger-bg); color: var(--danger); }
+.alert.success { background: var(--ok-bg); color: var(--ok); }
+
+.field-error { color: var(--danger); font-size: 0.88rem; margin-top: 0.25rem; }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.image-grid figure {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+.image-grid img { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; }
+.image-grid figcaption { padding: 0.4rem 0.5rem; font-size: 0.82rem; }
+
+.pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.pill.draft { background: #eee; color: #555; }
+.pill.submitted, .pill.under_review { background: #fff3d6; color: #8a6300; }
+.pill.changes_requested { background: #ffe6d1; color: #a34d00; }
+.pill.approved { background: var(--ok-bg); color: var(--ok); }
+.pill.rejected, .pill.withdrawn { background: var(--danger-bg); color: var(--danger); }
+
+footer.site-footer {
+  margin-top: 3rem;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #8a7c6d;
+}
+
+@media (max-width: 480px) {
+  :root { font-size: 16px; }
+  .container { padding: 1rem 0.75rem 3rem; }
+}

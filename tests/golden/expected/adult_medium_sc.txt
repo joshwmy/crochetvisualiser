@@ -1,0 +1,81 @@
+# Adult Medium SC Beanie
+
+This is an original, deterministically generated reconstruction. It is not a recovered designer pattern. Make and measure a gauge swatch before beginning.
+
+## Materials and assumptions
+- Body stitch: single crochet (sc), US terminology
+- Construction: continuous rounds
+- Template: top_down_basic@1.0.0
+
+## Gauge
+- 14.0 sc and 16.0 rounds per 10 cm
+
+## Finished measurements
+- Head circumference (input): 56.0 cm
+- Negative ease: 8.0%
+- Target finished circumference: 51.520 cm
+- Body stitch count: 72 (raw gauge calculation: 72.13, dimensional deviation: 0.09 cm)
+- Target height: 21.0 cm
+- Brim height: 4.0 cm
+
+## Abbreviations
+- sc = single crochet
+- st(s) = stitch(es)
+- MR = magic ring
+- inc = increase
+
+## Construction notes
+- Worked in continuous spiral rounds (no slip-stitch join). Use a stitch marker to track the start of each round.
+
+## Crown
+Round 1: Work 6 sc into an adjustable (magic) ring. (6)
+Round 2: *2 sc in next st* around (6 times). (12)
+Round 3: *sc in next 1 st, 2 sc in next st* around (6 times). (18)
+Round 4: *sc in next 2 sts, 2 sc in next st* around (6 times). (24)
+Round 5: *sc in next 3 sts, 2 sc in next st* around (6 times). (30)
+Round 6: *sc in next 4 sts, 2 sc in next st* around (6 times). (36)
+Round 7: *sc in next 5 sts, 2 sc in next st* around (6 times). (42)
+Round 8: *sc in next 6 sts, 2 sc in next st* around (6 times). (48)
+Round 9: *sc in next 7 sts, 2 sc in next st* around (6 times). (54)
+Round 10: *sc in next 8 sts, 2 sc in next st* around (6 times). (60)
+Round 11: *sc in next 9 sts, 2 sc in next st* around (6 times). (66)
+Round 12: *sc in next 10 sts, 2 sc in next st* around (6 times). (72)
+
+## Body
+Round 13: Sc in next 72 sts. (72)
+Round 14: Sc in next 72 sts. (72)
+Round 15: Sc in next 72 sts. (72)
+Round 16: Sc in next 72 sts. (72)
+Round 17: Sc in next 72 sts. (72)
+Round 18: Sc in next 72 sts. (72)
+Round 19: Sc in next 72 sts. (72)
+Round 20: Sc in next 72 sts. (72)
+Round 21: Sc in next 72 sts. (72)
+Round 22: Sc in next 72 sts. (72)
+Round 23: Sc in next 72 sts. (72)
+Round 24: Sc in next 72 sts. (72)
+Round 25: Sc in next 72 sts. (72)
+Round 26: Sc in next 72 sts. (72)
+Round 27: Sc in next 72 sts. (72)
+Round 28: Sc in next 72 sts. (72)
+
+## Brim
+Round 29: Sc in next 72 sts (back loop only). (72)
+Round 30: Sc in next 72 sts (back loop only). (72)
+Round 31: Sc in next 72 sts (back loop only). (72)
+Round 32: Sc in next 72 sts (back loop only). (72)
+Round 33: Sc in next 72 sts (back loop only). (72)
+Round 34: Sc in next 72 sts (back loop only). (72)
+
+## Validation status
+- Status: valid
+- Engine version: 0.1.0
+
+## Assumptions
+- gauge.stitch_family = sc [user_confirmed]
+- construction = continuous_rounds [user_confirmed]
+- negative_ease_pct = 8.0 [user_confirmed]
+- calculated.target_circumference_cm = 51.520 [derived] (C_t = H * (1 - ease); see docs/mathematical-assumptions.md)
+- calculated.repeat_multiple = 6 [derived] (Nearest template-approved schedule to k = 2*pi*g_s/g_r)
+
+Pattern fingerprint: 2a4757dd20864a0178f5f1e2ef0269fb34cc13839675e91ec57411f28284d863
