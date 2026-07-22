@@ -20,6 +20,13 @@ export class SelectionHighlighter {
     scene.add(this.marker);
   }
 
+  /** Test-only accessor (see App.getClippingDebugInfo) — the marker is
+   * deliberately private otherwise; nothing in application code should
+   * reach into it directly. */
+  getMarkerMesh(): THREE.Mesh {
+    return this.marker;
+  }
+
   clear(): void {
     if (this.previousColorByGroup) {
       const { group, index, color } = this.previousColorByGroup;

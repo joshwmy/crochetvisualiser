@@ -2,6 +2,12 @@
 // for slice 1 (a handful of panels driven by one geometry document) doesn't
 // justify a state-management library.
 
+import type { SegmentRole } from "../geometry/stitch_paths/types";
+import type { Vec3 } from "../types/geometry";
+import type { Measurement } from "../measurement/types";
+
+export type { Measurement } from "../measurement/types";
+
 export type ViewMode = "structural" | "yarn";
 export type QualityName = "low" | "medium" | "high";
 
@@ -10,13 +16,6 @@ export interface ClippingState {
   axis: "x" | "y" | "z";
   offset: number; // -1..1, fraction of bounds extent along `axis`
   invert: boolean;
-}
-
-export interface Measurement {
-  id: string;
-  stitchIdA: string;
-  stitchIdB: string;
-  distanceCm: number;
 }
 
 export interface ViewerState {
@@ -38,7 +37,20 @@ export interface ViewerState {
   measurements: Measurement[];
   /** First stitch clicked while a measurement is in progress; cleared once the second click completes it. */
   pendingMeasurementStitchId: string | null;
+  /** First raw click point recorded while an arbitrary point-to-point
+   * measurement is in progress (measurementPointMode: true); cleared once
+   * the second click completes it. Independent of pendingMeasurementStitchId
+   * since the two measurement kinds record different click data. */
+  pendingMeasurementPoint: Vec3 | null;
   measurementModeActive: boolean;
+  /** false (default): clicks record stitch-to-stitch measurements. true:
+   * clicks record arbitrary point-to-point measurements (raw raycast hit,
+   * not snapped to a stitch). Only meaningful while measurementModeActive. */
+  measurementPointMode: boolean;
+  /** Semantic stitch-path inspection mode (yarn-mode only) — see selection/path_inspection.ts. */
+  pathModeActive: boolean;
+  /** null means "highlight all roles"; a role narrows display to just that role. */
+  pathFocusRole: SegmentRole | null;
 }
 
 export type Listener<T> = (state: T) => void;
@@ -86,6 +98,10 @@ export function createInitialState(stitchCount: number, quality: QualityName = "
     graphOverlay: false,
     measurements: [],
     pendingMeasurementStitchId: null,
+    pendingMeasurementPoint: null,
     measurementModeActive: false,
+    measurementPointMode: false,
+    pathModeActive: false,
+    pathFocusRole: null,
   };
 }

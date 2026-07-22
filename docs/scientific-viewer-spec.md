@@ -25,11 +25,14 @@ viewer/src/
 ├── selection/
 │   ├── picking.ts          structural raycast -> instanceId -> stitch_id
 │   ├── highlight.ts        colour-independent selection marker (wireframe torus)
-│   └── graph_overlay.ts    one-hop StitchGraph edge overlay for the selected stitch
-├── measurement/measurement.ts   point-to-point / round-circumference distance — see docs/measurement-tools.md
+│   ├── graph_overlay.ts    one-hop StitchGraph edge overlay for the selected stitch
+│   └── path_inspection.ts  role-coloured semantic path-inspection render (yarn mode)
+├── measurement/
+│   ├── types.ts             Measurement tagged union (5 kinds) — see docs/measurement-tools.md
+│   └── measurement.ts       one create*Measurement() function per kind + line-overlay builder
 ├── animation/construction.ts    sequence-driven construction timeline
-├── clipping/clipping.ts    bounds-relative clipping plane (THREE.Plane + material.clippingPlanes)
-├── state/store.ts          plain pub-sub ViewerState (includes quality, xray, measurements, clipping)
+├── clipping/clipping.ts    bounds-relative clipping plane (THREE.Plane + material.clippingPlanes) — see docs/clipping-and-section-views.md
+├── state/store.ts          plain pub-sub ViewerState (measurements, clipping, path-mode/role-focus, quality, xray, ...)
 ├── types/geometry.ts       mirrors geometry/models.py field-for-field
 └── main.ts                 DOM wiring for the control panel
 ```
@@ -117,7 +120,18 @@ store notifies subscribers
         +--> wireInspector() DOM update        #inspector-content <dl> (type, parents, ...)
         +--> graph_overlay rebuild (if on)     one-hop StitchGraph edges from the selection
         +--> measurement list + line rebuild   #measurement-list <li> + dashed THREE.Line
+        +--> path-inspection rebuild (if on)   role-coloured segments for the selection
 ```
+
+Diagram simplified for readability — two details not drawn above: (1) when
+`measurementPointMode` is true, the flow skips `pickStitch()` entirely and
+uses `App.raycastPoint()`'s raw hit point instead, recording a
+`point_distance` measurement rather than a `stitch_distance` one; (2)
+`applyClipping` runs once more after every one of the four `-->` rebuilds
+above, since the graph overlay/measurement line objects are rebuilt fresh
+on every store update and need clipping (re-)applied to the new objects,
+not the disposed previous ones — see
+`docs/clipping-and-section-views.md`.
 
 ## Semantic identity, never inferred from position
 
@@ -162,8 +176,18 @@ need for it.
 - **Graph overlay**: a one-hop `StitchGraph` edge overlay
   (`selection/graph_overlay.ts`) for the currently selected stitch only —
   never the whole graph — colour-coded by edge type (insertion, horizontal
-  neighbour, yarn sequence, round closure). Toggled independently of view
-  mode and X-ray.
+  neighbour, yarn sequence, round closure), with a text legend
+  (`#graph-overlay-legend`) so the colours are never the only way to tell
+  edge types apart. Toggled independently of view mode and X-ray.
+- **Path-inspection mode** (`selection/path_inspection.ts`, completion-audit
+  addition): shows only the selected stitch's semantic yarn-path segments,
+  coloured per role, with an optional dimmed render of the immediate
+  parent/next-in-sequence stitch for context — never every stitch in the
+  model. `#path-role-select` doubles as "highlight all" (blank option) and
+  "focus one role"; `#path-clear-focus` resets to highlight-all. The
+  inspector's "Path role in focus" row and `#path-role-legend`'s text
+  labels mean no part of this mode communicates a role by colour alone. See
+  `docs/stitch-geometry-strategies.md` for the role vocabulary.
 
 Symbol-chart mode remains unimplemented (out of this slice's scope — see
 `docs/known-limitations.md`).
@@ -183,19 +207,26 @@ Symbol-chart mode remains unimplemented (out of this slice's scope — see
   (colour-blind-safe, and meaningful in yarn mode where instance colour
   isn't used).
 - Round isolation (dropdown of every `component:round` pair), per-component
-  show/hide, global opacity slider, one clipping plane (axis + position +
-  invert) — the clipping plane now applies uniformly to both structural and
-  yarn materials (`applyClippingToMaterials`).
+  show/hide, global opacity slider, one clipping plane (axis, slider *and*
+  numeric-entry position kept mirrored, invert, reset button) — the
+  clipping plane applies to structural/yarn geometry and to the graph
+  overlay/measurement lines; the selection marker and path-inspection
+  overlay deliberately do not, so the current selection is never hidden by
+  a clip plane — see `docs/clipping-and-section-views.md` for the full,
+  explicit policy and its verification hook.
 - Construction animation strictly driven by `sequence_index` — never
   spatial proximity (`animation/construction.ts`): play/pause/restart/step,
   speed control, timeline slider.
 - Hidden stitches use a zero-scale instance matrix rather than removing
   them from the `InstancedMesh` — cheap, and trivially reversible without
   rebuilding geometry.
-- **Measurement mode**: click two distinct stitches to record an
-  approximate point-to-point distance, rendered as a dashed line and listed
-  in a removable list — see `docs/measurement-tools.md` for the full click
-  flow and its interaction with the inspector/selection state.
+- **Measurement tools**: five kinds — arbitrary point-to-point, stitch-to-
+  stitch, object width, object height, and selected-round circumference —
+  each a `Measurement` union record (`measurement/types.ts`) with a
+  `label`/`valueCm`/`unit`/`approximate` flag rather than a hardcoded
+  display string. Point/stitch distances render as a dashed line; the three
+  whole-model/whole-round summaries render only in the measurement list.
+  See `docs/measurement-tools.md`.
 - **Quality presets** (`low`/`medium`/`high`): trade yarn-mode tube fidelity
   for build time; defaults to a stitch-count-based deterministic choice,
   never an automatic "always high" default — see
@@ -238,8 +269,9 @@ fallback re-measures the canvas after the report layout has painted.
 
 On the 1640-stitch `adult_beanie_hdc` fixture: structural instanced-scene
 build ≈ 20–34 ms (3 draw calls, ~88,560 triangles), geometry-document
-validation ≈ 3–4 ms, fixture JSON size ≈ 3.2 MB. Production bundle ≈ 562 KB
-minified / 144 KB gzipped (`npm run build`, re-measured this slice; mostly
+validation ≈ 3–4 ms, fixture JSON size ≈ 3.2 MB. Production bundle ≈ 572 KB
+minified / 146 KB gzipped (`npm run build`, re-measured after the
+completion audit; mostly
 Three.js itself, ~28 KB/8 KB gzipped over the previous milestone's figure
 from this slice's own new code) — still a candidate for code-splitting if
 the viewer grows, not addressed in this slice.

@@ -79,6 +79,7 @@
           </select>
           <label><input type="checkbox" id="xray-toggle" /> X-ray mode</label>
           <label><input type="checkbox" id="graph-overlay-toggle" /> Graph overlay (selected stitch)</label>
+          <ul id="graph-overlay-legend" aria-label="Graph overlay edge-type colour legend" hidden></ul>
           <button id="toggle-projection" type="button">Perspective / Orthographic</button>
           <div class="button-row" id="view-presets">
             <button type="button" data-preset="front">Front</button>
@@ -125,9 +126,13 @@
             <option value="y">Y</option>
             <option value="z" selected>Z</option>
           </select>
-          <label for="clip-offset">Position</label>
+          <label for="clip-offset">Position (% of bounds)</label>
           <input type="range" id="clip-offset" min="-100" max="100" value="0" />
+          <input type="number" id="clip-offset-number" min="-100" max="100" value="0" aria-label="Clipping position, percent of bounds" />
           <label><input type="checkbox" id="clip-invert" /> Invert</label>
+          <div class="button-row">
+            <button id="clip-reset" type="button">Reset clipping</button>
+          </div>
         </section>
 
         <section aria-labelledby="inspector-heading">
@@ -142,10 +147,33 @@
           <ul id="yarn-warnings" aria-label="Geometry warnings"></ul>
         </section>
 
+        <section aria-labelledby="path-inspection-heading">
+          <h2 id="path-inspection-heading">Path inspection</h2>
+          <label><input type="checkbox" id="path-mode-toggle" /> Show stitch path (yarn mode)</label>
+          <label for="path-role-select">Path role</label>
+          <select id="path-role-select">
+            <option value="">All roles (highlight all)</option>
+          </select>
+          <div class="button-row">
+            <button id="path-clear-focus" type="button">Clear path focus</button>
+          </div>
+          <ul id="path-role-legend" aria-label="Path role colour legend"></ul>
+        </section>
+
         <section aria-labelledby="measurement-heading">
           <h2 id="measurement-heading">Measurements</h2>
-          <label><input type="checkbox" id="measurement-mode-toggle" /> Measurement mode (click two stitches)</label>
+          <label><input type="checkbox" id="measurement-mode-toggle" /> Measurement mode (click two points)</label>
+          <label for="measurement-kind-select">Click measurement kind</label>
+          <select id="measurement-kind-select">
+            <option value="stitch">Stitch-to-stitch</option>
+            <option value="point">Arbitrary point-to-point</option>
+          </select>
           <p id="measurement-status" role="status" aria-live="polite"></p>
+          <div class="button-row">
+            <button id="measure-width" type="button">Measure width</button>
+            <button id="measure-height" type="button">Measure height</button>
+            <button id="measure-round-circumference" type="button">Measure selected round circumference</button>
+          </div>
           <ul id="measurement-list" aria-label="Recorded measurements"></ul>
         </section>
 

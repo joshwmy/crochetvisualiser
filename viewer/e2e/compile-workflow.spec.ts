@@ -194,6 +194,12 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     await page.selectOption("#view-mode", "yarn");
     await expect(page.locator("#view-mode")).toHaveValue("yarn");
 
+    // 3b: enable path mode *before* selecting anything — the role picker
+    // must not offer a real role with nothing selected to inspect.
+    await page.check("#path-mode-toggle");
+    await expect(page.locator("#path-role-select")).toBeDisabled();
+    await expect(page.locator("#path-role-select option")).toHaveCount(1);
+
     // 4: select a stitch in yarn mode.
     const { stitchId: firstHitId } = await selectAnyStitchViaProbe(page);
     expect(firstHitId).toMatch(/^piece-r\d+-s\d+$/);
@@ -206,15 +212,64 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     const parentsValue = await parentsRow.locator("xpath=following-sibling::dd[1]").textContent();
     expect(parentsValue).toBeTruthy();
 
+    // 5b: with a stitch now selected, the role picker enables and populates;
+    // pick a role, confirm the inspector's "Path role in focus" row
+    // reflects it as text (not colour-only), then clear the focus.
+    await expect(page.locator("#path-role-select")).toBeEnabled();
+    const roleOptionCount = await page.locator("#path-role-select option").count();
+    expect(roleOptionCount).toBeGreaterThan(1); // "All roles" + at least one real role
+    const firstRealRole = await page.locator("#path-role-select option").nth(1).getAttribute("value");
+    expect(firstRealRole).toBeTruthy();
+    await page.selectOption("#path-role-select", firstRealRole!);
+    const focusRow = page.locator("#inspector-content dt", { hasText: "Path role in focus" });
+    await expect(focusRow).toHaveCount(1);
+    await expect(focusRow.locator("xpath=following-sibling::dd[1]")).toHaveText(firstRealRole!);
+
+    await page.click("#path-clear-focus");
+    await expect(focusRow.locator("xpath=following-sibling::dd[1]")).toHaveText("(all roles highlighted)");
+    // Deliberately left checked here — step 11b below confirms a recompile
+    // resets it, rather than this test resetting it manually first.
+
     // 6: enable X-ray mode.
     await page.check("#xray-toggle");
     await expect(page.locator("#xray-toggle")).toBeChecked();
 
-    // 7: apply a clipping plane.
+    // 7: apply a clipping plane — via the slider, confirming the numeric
+    // input mirrors it, then via the numeric input directly, then reset.
     await page.check("#clip-enabled");
     await page.selectOption("#clip-axis", "z");
     await setRangeInput(page, "clip-offset", "25");
     await expect(page.locator("#clip-enabled")).toBeChecked();
+    await expect(page.locator("#clip-offset-number")).toHaveValue("25");
+
+    await page.fill("#clip-offset-number", "-40");
+    await page.locator("#clip-offset-number").dispatchEvent("input");
+    await expect(page.locator("#clip-offset")).toHaveValue("-40");
+
+    await page.click("#clip-reset");
+    await expect(page.locator("#clip-enabled")).not.toBeChecked();
+    await expect(page.locator("#clip-offset")).toHaveValue("0");
+    await expect(page.locator("#clip-offset-number")).toHaveValue("0");
+
+    // 7b: re-enable clipping and the graph overlay together, then verify
+    // the documented policy via the test-only debug hook: graph overlay
+    // and measurement lines are clipped like real geometry, but the
+    // selection marker is deliberately exempt (see App.applyClipping).
+    await page.check("#clip-enabled");
+    await page.check("#graph-overlay-toggle");
+    await expect(page.locator("#graph-overlay-legend")).toBeVisible();
+    const clippingDebug = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __app: {
+              getClippingDebugInfo(): { graphOverlayClipped: boolean | null; selectionMarkerClipped: boolean };
+            };
+          }
+        ).__app.getClippingDebugInfo(),
+    );
+    expect(clippingDebug.graphOverlayClipped).toBe(true);
+    expect(clippingDebug.selectionMarkerClipped).toBe(false);
 
     // 8: add a measurement between two distinct stitches.
     await page.check("#measurement-mode-toggle");
@@ -228,6 +283,38 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     await expect(page.locator("#measurement-list li")).toHaveCount(1, { timeout: 5000 });
     await expect(page.locator("#measurement-list li").first()).toContainText("cm (approx.)");
     await page.uncheck("#measurement-mode-toggle");
+
+    // 8b: object width, object height, and round circumference (the
+    // currently selected stitch's round) — each a one-click measurement,
+    // not a click-two-points flow.
+    await page.click("#measure-width");
+    await page.click("#measure-height");
+    await expect(page.locator("#measurement-list li")).toHaveCount(3);
+    await expect(page.locator("#measurement-list li").nth(1)).toContainText("Object width");
+    await expect(page.locator("#measurement-list li").nth(2)).toContainText("Object height");
+
+    await expect(page.locator("#measure-round-circumference")).toBeEnabled(); // a stitch is selected from step 8's clicks
+    await page.click("#measure-round-circumference");
+    await expect(page.locator("#measurement-list li")).toHaveCount(4);
+    await expect(page.locator("#measurement-list li").nth(3)).toContainText("circumference");
+
+    // 8c: arbitrary point-to-point measurement (not snapped to a stitch) —
+    // clicks a raw raycast hit point, so success is judged by the
+    // measurement list growing, not by the inspector (which point-mode
+    // clicks never touch).
+    await page.selectOption("#measurement-kind-select", "point");
+    await page.check("#measurement-mode-toggle");
+    await expect(page.locator("#measurement-status")).toHaveText(/Click a point/);
+    const canvas = page.locator("#viewport");
+    const canvasBox = (await canvas.boundingBox())!;
+    for (const [dx, dy] of PROBE_OFFSETS) {
+      await canvas.click({ position: { x: canvasBox.width / 2 + dx, y: canvasBox.height / 2 + dy } });
+      if ((await page.locator("#measurement-list li").count()) === 5) break;
+    }
+    await expect(page.locator("#measurement-list li")).toHaveCount(5, { timeout: 5000 });
+    await expect(page.locator("#measurement-list li").nth(4)).toContainText("Point-to-point");
+    await page.uncheck("#measurement-mode-toggle");
+    await page.selectOption("#measurement-kind-select", "stitch");
 
     // 9: change the yarn quality level; the store must reflect the new value
     // (a prior bug left the store stale after setQuality — this guards it).
@@ -247,6 +334,15 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     const geometryCountAfterSecondCompile = await trackedGeometryCount(page);
     expect(geometryCountAfterSecondCompile).toBeLessThanOrEqual(geometryCountBeforeSecondCompile);
     await expect(page.locator("#measurement-list li")).toHaveCount(0);
+
+    // 11b: path-inspection mode must also reset — an old role focus (or the
+    // mode itself) referencing the previous model's data must not survive.
+    await expect(page.locator("#path-mode-toggle")).not.toBeChecked();
+
+    // 11c: clipping (left enabled since step 7b) must also reset, and the
+    // DOM controls must visibly reflect that reset, not just internal state.
+    await expect(page.locator("#clip-enabled")).not.toBeChecked();
+    await expect(page.locator("#clip-offset")).toHaveValue("0");
 
     // 12: the new model remains interactive — a stitch in it can be selected.
     const { stitchId: postRecompileHit } = await selectAnyStitchViaProbe(page);

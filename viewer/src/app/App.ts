@@ -18,7 +18,17 @@ import { applyYarnMaterialState } from "../materials/yarn_material";
 import { Picker } from "../selection/picking";
 import { SelectionHighlighter } from "../selection/highlight";
 import { buildGraphOverlay } from "../selection/graph_overlay";
-import { buildMeasurementLine, measureDistance } from "../measurement/measurement";
+import { buildPathInspectionMeshes } from "../selection/path_inspection";
+import type { SegmentRole, StitchPathResult } from "../geometry/stitch_paths/types";
+import {
+  buildMeasurementLine,
+  createObjectHeightMeasurement,
+  createObjectWidthMeasurement,
+  createPointDistanceMeasurement,
+  createRoundCircumferenceMeasurement,
+  measureDistance,
+} from "../measurement/measurement";
+import type { Vec3 } from "../types/geometry";
 import { ConstructionTimeline } from "../animation/construction";
 import { buildClippingPlane, applyClippingToMaterials } from "../clipping/clipping";
 import { Store, createInitialState, type QualityName, type ViewerState } from "../state/store";
@@ -50,6 +60,7 @@ export class App {
   private doc: GeometryDocument;
   private stats: PerformanceStats;
   private selectedOverlay: THREE.Mesh | null = null;
+  private pathContextOverlay: THREE.Mesh | null = null;
   private graphOverlayObject: THREE.LineSegments | null = null;
   private measurementLines: Map<string, THREE.Line> = new Map();
 
@@ -135,7 +146,10 @@ export class App {
       animationPlaying: false,
       measurements: [],
       pendingMeasurementStitchId: null,
+      pendingMeasurementPoint: null,
       graphOverlay: false,
+      pathModeActive: false,
+      pathFocusRole: null,
       // viewMode, cameraMode, opacity, quality, xray, animationSpeed
       // deliberately untouched — user display preferences survive a recompile.
     });
@@ -235,6 +249,12 @@ export class App {
       (this.graphOverlayObject.material as THREE.Material).dispose();
       this.graphOverlayObject = null;
     }
+    if (this.pathContextOverlay) {
+      this.scene.remove(this.pathContextOverlay);
+      this.pathContextOverlay.geometry.dispose();
+      (this.pathContextOverlay.material as THREE.Material).dispose();
+      this.pathContextOverlay = null;
+    }
     for (const line of this.measurementLines.values()) {
       this.scene.remove(line);
       line.geometry.dispose();
@@ -267,6 +287,27 @@ export class App {
     return this.doc;
   }
 
+  /** Test-only hook (see e2e/compile-workflow.spec.ts): proves the
+   * documented clipping policy (applyClipping's docstring) by inspecting
+   * actual material.clippingPlanes state, rather than trusting the code by
+   * inspection alone. `null` for a field means that overlay doesn't
+   * currently exist (e.g. no measurement recorded yet). */
+  getClippingDebugInfo(): {
+    graphOverlayClipped: boolean | null;
+    measurementClipped: boolean | null;
+    selectionMarkerClipped: boolean;
+  } {
+    const hasPlanes = (material: THREE.Material): boolean => (material.clippingPlanes?.length ?? 0) > 0;
+    const firstMeasurementLine = this.measurementLines.values().next().value as THREE.Line | undefined;
+    return {
+      graphOverlayClipped: this.graphOverlayObject
+        ? hasPlanes(this.graphOverlayObject.material as THREE.Material)
+        : null,
+      measurementClipped: firstMeasurementLine ? hasPlanes(firstMeasurementLine.material as THREE.Material) : null,
+      selectionMarkerClipped: hasPlanes(this.highlighter.getMarkerMesh().material as THREE.Material),
+    };
+  }
+
   getStitch(stitchId: string) {
     return this.doc.stitches.find((s) => s.stitch_id === stitchId) ?? null;
   }
@@ -277,6 +318,28 @@ export class App {
 
   getYarnWarnings(stitchId: string): string[] {
     return this.yarnScene.warningsByStitch.get(stitchId) ?? [];
+  }
+
+  /** Unique semantic path roles present on a stitch's yarn geometry — drives
+   * the path-inspection role picker/legend. Empty if the stitch has no
+   * yarn-path result (e.g. no document loaded yet). */
+  getPathRoles(stitchId: string): SegmentRole[] {
+    const result = this.yarnScene.pathResultsByStitch.get(stitchId);
+    return result ? [...new Set(result.segments.map((s) => s.role))] : [];
+  }
+
+  /** The immediate parent's and next-yarn-sequence stitch's own path
+   * results, for path-inspection mode's optional dimmed context (never the
+   * whole model — see selection/path_inspection.ts). */
+  private getPathContext(stitchId: string): { parent?: StitchPathResult; next?: StitchPathResult } {
+    const stitch = this.getStitch(stitchId);
+    const parentId = stitch?.parent_stitch_ids[0];
+    const parent = parentId ? this.yarnScene.pathResultsByStitch.get(parentId) : undefined;
+
+    const nextEdge = this.doc.edges.find((e) => e.edge_type === "yarn_sequence" && e.source_id === stitchId);
+    const next = nextEdge ? this.yarnScene.pathResultsByStitch.get(nextEdge.target_id) : undefined;
+
+    return { parent, next };
   }
 
   setViewPreset(preset: ViewPreset): void {
@@ -306,8 +369,24 @@ export class App {
   }
 
   private handlePointerDown(event: PointerEvent): void {
-    const stitchId = this.pickStitch(event);
     const state = this.store.get();
+
+    if (state.measurementModeActive && state.measurementPointMode) {
+      const point = this.raycastPoint(event);
+      if (!point) return;
+      if (state.pendingMeasurementPoint === null) {
+        this.store.set({ pendingMeasurementPoint: point });
+      } else {
+        const measurement = createPointDistanceMeasurement(this.doc, state.pendingMeasurementPoint, point);
+        this.store.set({
+          measurements: [...state.measurements, measurement],
+          pendingMeasurementPoint: null,
+        });
+      }
+      return;
+    }
+
+    const stitchId = this.pickStitch(event);
 
     if (state.measurementModeActive && stitchId) {
       if (state.pendingMeasurementStitchId === null) {
@@ -326,6 +405,56 @@ export class App {
     }
 
     this.store.set({ selectedStitchId: stitchId });
+  }
+
+  /** Raw raycast hit point, in world space — unlike pickStitch, does not
+   * resolve to a stitch id. Used for arbitrary point-to-point measurement,
+   * which must work regardless of whether the click happens to land near a
+   * stitch's exact geometry. */
+  private raycastPoint(event: PointerEvent): Vec3 | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.cameraRig.active);
+    const state = this.store.get();
+    const meshes =
+      state.viewMode === "structural"
+        ? this.structural.groups.map((g) => g.mesh)
+        : this.yarnScene.components.map((c) => c.mesh);
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length === 0) return null;
+    const { x, y, z } = hits[0].point;
+    return [x, y, z];
+  }
+
+  /** Appends an object-width measurement (max of the model's X/Y bounding-box
+   * extents) — see measurement/measurement.ts for why max, not X specifically. */
+  addObjectWidthMeasurement(): void {
+    const measurement = createObjectWidthMeasurement(this.doc);
+    this.store.set({ measurements: [...this.store.get().measurements, measurement] });
+  }
+
+  /** Appends an object-height measurement (the model's Z bounding-box extent). */
+  addObjectHeightMeasurement(): void {
+    const measurement = createObjectHeightMeasurement(this.doc);
+    this.store.set({ measurements: [...this.store.get().measurements, measurement] });
+  }
+
+  /** Appends a round-circumference measurement for the currently selected
+   * stitch's round. Returns false (no-op) if nothing is selected — the
+   * caller (main.ts) uses this to keep the triggering button disabled
+   * rather than silently failing on click. */
+  addRoundCircumferenceMeasurementForSelection(): boolean {
+    const stitchId = this.store.get().selectedStitchId;
+    const stitch = stitchId ? this.getStitch(stitchId) : null;
+    if (!stitch) return false;
+    const measurement = createRoundCircumferenceMeasurement(this.doc, stitch.component_id, stitch.round_index);
+    if (!measurement) return false;
+    this.store.set({ measurements: [...this.store.get().measurements, measurement] });
+    return true;
   }
 
   private pickStitch(event: PointerEvent): string | null {
@@ -366,10 +495,14 @@ export class App {
 
     this.applyPerStitchVisibility(state);
     this.applyOpacityAndXray(state);
-    this.applyClipping(state);
     this.applySelectedOverlay(state);
     this.applyGraphOverlay(state);
     this.applyMeasurements(state);
+    // Runs last: applySelectedOverlay/applyGraphOverlay/applyMeasurements
+    // rebuild their objects from scratch on every call, so clipping must be
+    // (re-)applied afterwards to reach the fresh materials, not the
+    // disposed previous ones.
+    this.applyClipping(state);
   }
 
   private applyPerStitchVisibility(state: ViewerState): void {
@@ -407,19 +540,45 @@ export class App {
     }
   }
 
+  /**
+   * Clipping policy (documented, not accidental — see
+   * docs/clipping-and-section-views.md):
+   *
+   * - Structural and yarn geometry are clipped: they represent the actual
+   *   model, so a clip plane should hide what it geometrically cuts away.
+   * - The graph overlay and measurement lines are also clipped: they
+   *   represent real edges/distances *of* that geometry, so they should
+   *   track what's actually visible rather than floating through a
+   *   clipped-away region as if unaffected.
+   * - The selection marker (highlight.ts's torus) and the selected-stitch/
+   *   path-inspection overlay are deliberately EXCLUDED from clipping: they
+   *   exist so the user never loses track of *where* their current
+   *   selection is, even if the clip plane currently hides it — an
+   *   "always know where you are" indicator, not part of the model itself.
+   */
   private applyClipping(state: ViewerState): void {
     const plane = state.clipping.enabled ? buildClippingPlane(this.doc.bounds, state.clipping) : null;
     const materials = [
       ...this.structural.groups.map((g) => g.mesh.material as THREE.Material),
       ...this.yarnScene.components.map((c) => c.mesh.material as THREE.Material),
     ];
+    if (this.graphOverlayObject) materials.push(this.graphOverlayObject.material as THREE.Material);
+    for (const line of this.measurementLines.values()) materials.push(line.material as THREE.Material);
     applyClippingToMaterials(materials, plane);
   }
 
   /** In x-ray/yarn mode, the selected stitch gets its own small, always-opaque
    * copy of its yarn geometry drawn on top — satisfying "selected stitch
    * remains clear and opaque" without needing per-triangle material control
-   * over the merged, translucent component mesh. */
+   * over the merged, translucent component mesh.
+   *
+   * When path-inspection mode is active, this becomes the path-inspection
+   * render instead: segments coloured per semantic role (optionally
+   * filtered to one focused role), plus a dimmed, flat-coloured render of
+   * the immediate parent/next-in-sequence stitch for context — never the
+   * whole model (see selection/path_inspection.ts). Both variants share
+   * one overlay lifecycle so there is exactly one "selected stitch is
+   * always visible" mesh to dispose, never two competing ones. */
   private applySelectedOverlay(state: ViewerState): void {
     if (this.selectedOverlay) {
       this.scene.remove(this.selectedOverlay);
@@ -427,9 +586,29 @@ export class App {
       (this.selectedOverlay.material as THREE.Material).dispose();
       this.selectedOverlay = null;
     }
+    if (this.pathContextOverlay) {
+      this.scene.remove(this.pathContextOverlay);
+      this.pathContextOverlay.geometry.dispose();
+      (this.pathContextOverlay.material as THREE.Material).dispose();
+      this.pathContextOverlay = null;
+    }
     if (state.viewMode !== "yarn" || !state.selectedStitchId) return;
     const result = this.yarnScene.pathResultsByStitch.get(state.selectedStitchId);
     if (!result) return;
+
+    if (state.pathModeActive) {
+      const context = this.getPathContext(state.selectedStitchId);
+      const built = buildPathInspectionMeshes(result, state.pathFocusRole, context);
+      if (built.focusMesh) {
+        this.selectedOverlay = built.focusMesh;
+        this.scene.add(this.selectedOverlay);
+      }
+      if (built.contextMesh) {
+        this.pathContextOverlay = built.contextMesh;
+        this.scene.add(this.pathContextOverlay);
+      }
+      return;
+    }
 
     const geometries: THREE.BufferGeometry[] = [];
     for (const segment of result.segments) {

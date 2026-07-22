@@ -6,6 +6,9 @@ import type { LightingPreset } from "./scene/scene";
 import type { ClippingState, QualityName, ViewerState } from "./state/store";
 import type { CompileState } from "./state/compile_store";
 import { AMIGURUMI_EXAMPLE } from "./examples";
+import { PATH_ROLE_LEGEND } from "./selection/path_inspection";
+import { GRAPH_OVERLAY_LEGEND } from "./selection/graph_overlay";
+import type { SegmentRole } from "./geometry/stitch_paths/types";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const errorBanner = document.getElementById("viewer-error") as HTMLDivElement;
@@ -71,6 +74,7 @@ async function main(): Promise<void> {
   wireTimeline(app);
   wireClippingControls(app);
   wireInspector(app);
+  wirePathInspection(app);
   wireMeasurements(app);
   wireResize(app);
   wireCompileWorkflow(app, controller);
@@ -137,8 +141,16 @@ function wireViewControls(app: App): void {
     app.getStore().set({ xray: (event.target as HTMLInputElement).checked });
   });
 
+  const graphOverlayLegend = qs<HTMLUListElement>("graph-overlay-legend");
+  graphOverlayLegend.innerHTML = GRAPH_OVERLAY_LEGEND.map(
+    ({ color, label }) =>
+      `<li><span class="legend-swatch" style="background:${color}"></span> ${escapeHtml(label)}</li>`,
+  ).join("");
+
   qs<HTMLInputElement>("graph-overlay-toggle").addEventListener("change", (event) => {
-    app.getStore().set({ graphOverlay: (event.target as HTMLInputElement).checked });
+    const checked = (event.target as HTMLInputElement).checked;
+    app.getStore().set({ graphOverlay: checked });
+    graphOverlayLegend.hidden = !checked;
   });
 }
 
@@ -202,26 +214,65 @@ function wireVisibilityControls(app: App): void {
   app.getStore().set({ hiddenComponentIds: new Set(), isolatedRoundKey: null });
 }
 
+const DEFAULT_CLIPPING: ClippingState = { enabled: false, axis: "z", offset: 0, invert: false };
+
 function wireClippingControls(app: App): void {
   const enabled = qs<HTMLInputElement>("clip-enabled");
   const axis = qs<HTMLSelectElement>("clip-axis");
   const offset = qs<HTMLInputElement>("clip-offset");
+  const offsetNumber = qs<HTMLInputElement>("clip-offset-number");
   const invert = qs<HTMLInputElement>("clip-invert");
+  const resetButton = qs<HTMLButtonElement>("clip-reset");
 
-  function pushState(): void {
+  function pushState(offsetPercent: number): void {
     const clipping: ClippingState = {
       enabled: enabled.checked,
       axis: axis.value as ClippingState["axis"],
-      offset: Number(offset.value) / 100,
+      offset: offsetPercent / 100,
       invert: invert.checked,
     };
     app.getStore().set({ clipping });
   }
 
-  for (const el of [enabled, axis, offset, invert]) {
-    el.addEventListener("input", pushState);
-    el.addEventListener("change", pushState);
+  // The range slider and the numeric input both drive the same offset
+  // value — keep them mirrored so neither one goes stale relative to the
+  // other, regardless of which one the user actually touches.
+  offset.addEventListener("input", () => {
+    offsetNumber.value = offset.value;
+    pushState(Number(offset.value));
+  });
+  offsetNumber.addEventListener("input", () => {
+    const clamped = Math.max(-100, Math.min(100, Number(offsetNumber.value) || 0));
+    offset.value = String(clamped);
+    pushState(clamped);
+  });
+
+  for (const el of [enabled, axis, invert]) {
+    el.addEventListener("input", () => pushState(Number(offset.value)));
+    el.addEventListener("change", () => pushState(Number(offset.value)));
   }
+
+  resetButton.addEventListener("click", () => {
+    app.getStore().set({ clipping: { ...DEFAULT_CLIPPING } });
+  });
+
+  // The controls above are write-only triggers; this keeps them in sync
+  // with the actual store value whenever it changes for a reason other
+  // than the user directly touching these five inputs — the reset button
+  // above, and `loadGeometryDocument` resetting clipping on every
+  // recompile (see App.ts). Without this, the checkbox/select/slider could
+  // show a stale state (e.g. still checked) right after a reset that the
+  // model itself already applied.
+  let lastSyncedClipping: ClippingState | null = null;
+  app.getStore().subscribe((state) => {
+    if (state.clipping === lastSyncedClipping) return;
+    lastSyncedClipping = state.clipping;
+    enabled.checked = state.clipping.enabled;
+    axis.value = state.clipping.axis;
+    offset.value = String(state.clipping.offset * 100);
+    offsetNumber.value = offset.value;
+    invert.checked = state.clipping.invert;
+  });
 
   qs<HTMLDivElement>("component-toggles").addEventListener("change", (event) => {
     const target = event.target as HTMLInputElement;
@@ -283,7 +334,9 @@ function wireInspector(app: App): void {
       ["Component", stitch.component_id],
       ["Round", String(stitch.round_index)],
       ["Sequence index", String(stitch.sequence_index)],
-      ["Loop placement", stitch.loop_placement],
+      ["Loop placement (requested)", stitch.loop_placement],
+      ["Resolved attachment", pathResult?.loopAttachment.resolved ?? "n/a"],
+      ["Exact attachment", pathResult ? (pathResult.loopAttachment.exact ? "Yes" : "No (fallback)") : "n/a"],
       ["Parents", stitch.parent_stitch_ids.join(", ") || "(magic ring)"],
       ["Children", children.map((c) => c.stitch_id).join(", ") || "(none yet / last round)"],
       ["Previous (yarn sequence)", previousStitch ?? "(start)"],
@@ -292,6 +345,10 @@ function wireInspector(app: App): void {
       ["Decrease", String(stitch.is_decrease)],
       ["Geometry strategy", pathResult?.strategyName ?? "n/a"],
       ["Path roles", pathResult ? [...new Set(pathResult.segments.map((s) => s.role))].join(", ") : "n/a"],
+      [
+        "Path role in focus",
+        state.pathModeActive ? (state.pathFocusRole ?? "(all roles highlighted)") : "(path mode off)",
+      ],
       ["Source", stitch.source_reference],
     ];
     content.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`).join("");
@@ -312,18 +369,105 @@ function wireInspector(app: App): void {
   });
 }
 
-function wireMeasurements(app: App): void {
-  const toggle = qs<HTMLInputElement>("measurement-mode-toggle");
-  const status = qs<HTMLParagraphElement>("measurement-status");
-  const list = qs<HTMLUListElement>("measurement-list");
+/**
+ * Semantic path-inspection mode: shows only the selected stitch's (plus
+ * dimmed parent/next context's) yarn-path segments, coloured per role — see
+ * selection/path_inspection.ts. The role `<select>` doubles as both "focus
+ * role" (choose a specific role) and "highlight all" (choose the blank
+ * "All roles" option); role text is always shown in the legend and the
+ * inspector's "Path role in focus" row, since colour alone must not be the
+ * only way to tell roles apart.
+ */
+function wirePathInspection(app: App): void {
+  const toggle = qs<HTMLInputElement>("path-mode-toggle");
+  const roleSelect = qs<HTMLSelectElement>("path-role-select");
+  const legend = qs<HTMLUListElement>("path-role-legend");
+
+  legend.innerHTML = PATH_ROLE_LEGEND.map(
+    ({ color, label }) =>
+      `<li><span class="legend-swatch" style="background:${color}"></span> ${escapeHtml(label)}</li>`,
+  ).join("");
 
   toggle.addEventListener("change", () => {
-    app.getStore().set({ measurementModeActive: toggle.checked, pendingMeasurementStitchId: null });
+    app.getStore().set({ pathModeActive: toggle.checked, pathFocusRole: null });
   });
 
+  roleSelect.addEventListener("change", () => {
+    app.getStore().set({ pathFocusRole: (roleSelect.value || null) as SegmentRole | null });
+  });
+
+  qs<HTMLButtonElement>("path-clear-focus").addEventListener("click", () => {
+    roleSelect.value = "";
+    app.getStore().set({ pathFocusRole: null });
+  });
+
+  let lastRoleKey = "";
   app.getStore().subscribe((state) => {
+    toggle.checked = state.pathModeActive;
+    roleSelect.disabled = !state.pathModeActive || !state.selectedStitchId;
+
+    // Rebuild the role-picker's option list only when the actual set of
+    // available roles changes — avoids clobbering the user's current
+    // selection (and the native <select>'s open dropdown) on every store
+    // update, since applyState fires on every unrelated state change too.
+    const roles = state.selectedStitchId ? app.getPathRoles(state.selectedStitchId) : [];
+    const roleKey = roles.join(",");
+    if (roleKey !== lastRoleKey) {
+      lastRoleKey = roleKey;
+      const options = ['<option value="">All roles (highlight all)</option>'];
+      for (const role of roles) options.push(`<option value="${role}">${role}</option>`);
+      roleSelect.innerHTML = options.join("");
+    }
+    roleSelect.value = state.pathFocusRole ?? "";
+  });
+}
+
+/** Renders any Measurement union member as one display line — every kind
+ * carries its own `label`/`valueCm`/`unit`/`approximate`, so this needs no
+ * per-type branching (see measurement/types.ts). */
+function formatMeasurement(measurement: import("./state/store").Measurement): string {
+  const approx = measurement.approximate ? " (approx.)" : "";
+  return `${measurement.label}: ${measurement.valueCm.toFixed(2)} ${measurement.unit}${approx}`;
+}
+
+function wireMeasurements(app: App): void {
+  const toggle = qs<HTMLInputElement>("measurement-mode-toggle");
+  const kindSelect = qs<HTMLSelectElement>("measurement-kind-select");
+  const status = qs<HTMLParagraphElement>("measurement-status");
+  const list = qs<HTMLUListElement>("measurement-list");
+  const widthButton = qs<HTMLButtonElement>("measure-width");
+  const heightButton = qs<HTMLButtonElement>("measure-height");
+  const roundButton = qs<HTMLButtonElement>("measure-round-circumference");
+
+  toggle.addEventListener("change", () => {
+    app.getStore().set({
+      measurementModeActive: toggle.checked,
+      pendingMeasurementStitchId: null,
+      pendingMeasurementPoint: null,
+    });
+  });
+
+  kindSelect.addEventListener("change", () => {
+    app.getStore().set({
+      measurementPointMode: kindSelect.value === "point",
+      pendingMeasurementStitchId: null,
+      pendingMeasurementPoint: null,
+    });
+  });
+
+  widthButton.addEventListener("click", () => app.addObjectWidthMeasurement());
+  heightButton.addEventListener("click", () => app.addObjectHeightMeasurement());
+  roundButton.addEventListener("click", () => app.addRoundCircumferenceMeasurementForSelection());
+
+  app.getStore().subscribe((state) => {
+    roundButton.disabled = !state.selectedStitchId;
+
     if (!state.measurementModeActive) {
       status.textContent = "";
+    } else if (state.measurementPointMode) {
+      status.textContent = state.pendingMeasurementPoint
+        ? "First point recorded. Click a second point."
+        : "Click a point on the model to start a point-to-point measurement.";
     } else if (state.pendingMeasurementStitchId) {
       status.textContent = `First stitch selected (${state.pendingMeasurementStitchId}). Click a second stitch.`;
     } else {
@@ -334,7 +478,7 @@ function wireMeasurements(app: App): void {
     for (const measurement of state.measurements) {
       const item = document.createElement("li");
       const label = document.createElement("span");
-      label.textContent = `${measurement.stitchIdA} ↔ ${measurement.stitchIdB}: ${measurement.distanceCm.toFixed(2)} cm (approx.)`;
+      label.textContent = formatMeasurement(measurement);
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.textContent = "Remove";

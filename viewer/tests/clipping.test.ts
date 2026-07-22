@@ -22,6 +22,14 @@ describe("buildClippingPlane", () => {
     expect(plane.distanceToPoint(point)).toBeCloseTo(0, 6);
   });
 
+  it("works on the Y axis (not just X/Z)", () => {
+    const clipping: ClippingState = { enabled: true, axis: "y", offset: -1, invert: false };
+    const plane = buildClippingPlane(bounds, clipping);
+    // y center is 0, min bound is -5 — offset -1 must land exactly on min.
+    const point = new THREE.Vector3(0, -5, 0);
+    expect(plane.distanceToPoint(point)).toBeCloseTo(0, 6);
+  });
+
   it("invert flips which half-space is kept", () => {
     const clipping: ClippingState = { enabled: true, axis: "x", offset: 0, invert: false };
     const clippingInverted: ClippingState = { ...clipping, invert: true };
