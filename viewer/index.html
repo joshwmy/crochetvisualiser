@@ -63,8 +63,22 @@
           <label for="view-mode">Mode</label>
           <select id="view-mode">
             <option value="structural">Structural</option>
-            <option value="yarn">Yarn (basic)</option>
+            <option value="yarn">Yarn (crochet-specific)</option>
           </select>
+          <label for="quality-select">Yarn quality</label>
+          <select id="quality-select">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+          <label for="lighting-select">Lighting</label>
+          <select id="lighting-select">
+            <option value="neutral_laboratory" selected>Neutral laboratory</option>
+            <option value="soft_studio">Soft studio</option>
+            <option value="high_contrast_inspection">High-contrast inspection</option>
+          </select>
+          <label><input type="checkbox" id="xray-toggle" /> X-ray mode</label>
+          <label><input type="checkbox" id="graph-overlay-toggle" /> Graph overlay (selected stitch)</label>
           <button id="toggle-projection" type="button">Perspective / Orthographic</button>
           <div class="button-row" id="view-presets">
             <button type="button" data-preset="front">Front</button>
@@ -120,6 +134,19 @@
           <h2 id="inspector-heading">Inspector</h2>
           <p id="inspector-empty">Click a stitch to inspect it.</p>
           <dl id="inspector-content" hidden></dl>
+          <div class="button-row" id="inspector-actions" hidden>
+            <button id="action-focus" type="button">Focus</button>
+            <button id="action-isolate-round" type="button">Isolate round</button>
+            <button id="action-clear-selection" type="button">Clear selection</button>
+          </div>
+          <ul id="yarn-warnings" aria-label="Geometry warnings"></ul>
+        </section>
+
+        <section aria-labelledby="measurement-heading">
+          <h2 id="measurement-heading">Measurements</h2>
+          <label><input type="checkbox" id="measurement-mode-toggle" /> Measurement mode (click two stitches)</label>
+          <p id="measurement-status" role="status" aria-live="polite"></p>
+          <ul id="measurement-list" aria-label="Recorded measurements"></ul>
         </section>
 
         <section aria-labelledby="perf-heading">

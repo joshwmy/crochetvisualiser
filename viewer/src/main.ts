@@ -2,7 +2,8 @@ import { App } from "./app/App";
 import { CompileController } from "./app/compile_controller";
 import { loadGeometry, GeometryLoadError } from "./geometry/load";
 import type { ViewPreset } from "./camera/camera";
-import type { ClippingState, ViewerState } from "./state/store";
+import type { LightingPreset } from "./scene/scene";
+import type { ClippingState, QualityName, ViewerState } from "./state/store";
 import type { CompileState } from "./state/compile_store";
 import { AMIGURUMI_EXAMPLE } from "./examples";
 
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   wireTimeline(app);
   wireClippingControls(app);
   wireInspector(app);
+  wireMeasurements(app);
   wireResize(app);
   wireCompileWorkflow(app, controller);
   refreshDocDependentUI(app);
@@ -82,6 +84,7 @@ function refreshDocDependentUI(app: App): void {
   wireInfoPanel(app);
   wireVisibilityControls(app);
   wirePerformancePanel(app);
+  qs<HTMLSelectElement>("quality-select").value = app.getStore().get().quality;
   const timeline = app.getTimeline();
   const slider = qs<HTMLInputElement>("timeline-slider");
   slider.max = String(timeline.length);
@@ -120,6 +123,22 @@ function wireViewControls(app: App): void {
     const target = event.target as HTMLElement;
     const preset = target.dataset.preset as ViewPreset | undefined;
     if (preset) app.setViewPreset(preset);
+  });
+
+  qs<HTMLSelectElement>("quality-select").addEventListener("change", (event) => {
+    app.setQuality((event.target as HTMLSelectElement).value as QualityName);
+  });
+
+  qs<HTMLSelectElement>("lighting-select").addEventListener("change", (event) => {
+    app.setLightingPreset((event.target as HTMLSelectElement).value as LightingPreset);
+  });
+
+  qs<HTMLInputElement>("xray-toggle").addEventListener("change", (event) => {
+    app.getStore().set({ xray: (event.target as HTMLInputElement).checked });
+  });
+
+  qs<HTMLInputElement>("graph-overlay-toggle").addEventListener("change", (event) => {
+    app.getStore().set({ graphOverlay: (event.target as HTMLInputElement).checked });
   });
 }
 
@@ -229,17 +248,35 @@ function wireClippingControls(app: App): void {
 function wireInspector(app: App): void {
   const empty = qs<HTMLParagraphElement>("inspector-empty");
   const content = qs<HTMLDListElement>("inspector-content");
+  const actions = qs<HTMLDivElement>("inspector-actions");
+  const warningsEl = qs<HTMLUListElement>("yarn-warnings");
 
   app.getStore().subscribe((state) => {
     if (!state.selectedStitchId) {
       empty.hidden = false;
       content.hidden = true;
+      actions.hidden = true;
+      warningsEl.innerHTML = "";
       return;
     }
     const stitch = app.getStitch(state.selectedStitchId);
     if (!stitch) return;
     empty.hidden = true;
     content.hidden = false;
+    actions.hidden = false;
+
+    const doc = app.getDoc();
+    const children = doc.stitches.filter((s) => s.parent_stitch_ids.includes(stitch.stitch_id));
+    const neighborEdges = doc.edges.filter(
+      (e) =>
+        e.edge_type === "yarn_sequence" &&
+        (e.source_id === stitch.stitch_id || e.target_id === stitch.stitch_id),
+    );
+    const previousStitch = neighborEdges.find((e) => e.target_id === stitch.stitch_id)?.source_id;
+    const nextStitch = neighborEdges.find((e) => e.source_id === stitch.stitch_id)?.target_id;
+    const pathResult = app.getYarnPathResult(stitch.stitch_id);
+    const warnings = app.getYarnWarnings(stitch.stitch_id);
+
     const rows: [string, string][] = [
       ["Stitch ID", stitch.stitch_id],
       ["Type", stitch.stitch_type],
@@ -248,17 +285,67 @@ function wireInspector(app: App): void {
       ["Sequence index", String(stitch.sequence_index)],
       ["Loop placement", stitch.loop_placement],
       ["Parents", stitch.parent_stitch_ids.join(", ") || "(magic ring)"],
+      ["Children", children.map((c) => c.stitch_id).join(", ") || "(none yet / last round)"],
+      ["Previous (yarn sequence)", previousStitch ?? "(start)"],
+      ["Next (yarn sequence)", nextStitch ?? "(end)"],
       ["Increase", String(stitch.is_increase)],
       ["Decrease", String(stitch.is_decrease)],
+      ["Geometry strategy", pathResult?.strategyName ?? "n/a"],
+      ["Path roles", pathResult ? [...new Set(pathResult.segments.map((s) => s.role))].join(", ") : "n/a"],
       ["Source", stitch.source_reference],
     ];
-    content.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+    content.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`).join("");
+    warningsEl.innerHTML = warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("");
+  });
 
-    const focusButton = document.createElement("button");
-    focusButton.type = "button";
-    focusButton.textContent = "Focus camera here";
-    focusButton.addEventListener("click", () => app.focusOnStitch(stitch.stitch_id));
-    content.appendChild(focusButton);
+  qs<HTMLButtonElement>("action-focus").addEventListener("click", () => {
+    const id = app.getStore().get().selectedStitchId;
+    if (id) app.focusOnStitch(id);
+  });
+  qs<HTMLButtonElement>("action-isolate-round").addEventListener("click", () => {
+    const id = app.getStore().get().selectedStitchId;
+    const stitch = id ? app.getStitch(id) : null;
+    if (stitch) app.getStore().set({ isolatedRoundKey: `${stitch.component_id}:${stitch.round_index}` });
+  });
+  qs<HTMLButtonElement>("action-clear-selection").addEventListener("click", () => {
+    app.getStore().set({ selectedStitchId: null });
+  });
+}
+
+function wireMeasurements(app: App): void {
+  const toggle = qs<HTMLInputElement>("measurement-mode-toggle");
+  const status = qs<HTMLParagraphElement>("measurement-status");
+  const list = qs<HTMLUListElement>("measurement-list");
+
+  toggle.addEventListener("change", () => {
+    app.getStore().set({ measurementModeActive: toggle.checked, pendingMeasurementStitchId: null });
+  });
+
+  app.getStore().subscribe((state) => {
+    if (!state.measurementModeActive) {
+      status.textContent = "";
+    } else if (state.pendingMeasurementStitchId) {
+      status.textContent = `First stitch selected (${state.pendingMeasurementStitchId}). Click a second stitch.`;
+    } else {
+      status.textContent = "Click a stitch to start a measurement.";
+    }
+
+    list.innerHTML = "";
+    for (const measurement of state.measurements) {
+      const item = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = `${measurement.stitchIdA} ↔ ${measurement.stitchIdB}: ${measurement.distanceCm.toFixed(2)} cm (approx.)`;
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.textContent = "Remove";
+      removeButton.addEventListener("click", () => {
+        const current = app.getStore().get();
+        app.getStore().set({ measurements: current.measurements.filter((m) => m.id !== measurement.id) });
+      });
+      item.appendChild(label);
+      item.appendChild(removeButton);
+      list.appendChild(item);
+    }
   });
 }
 

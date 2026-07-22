@@ -3,12 +3,20 @@
 // justify a state-management library.
 
 export type ViewMode = "structural" | "yarn";
+export type QualityName = "low" | "medium" | "high";
 
 export interface ClippingState {
   enabled: boolean;
   axis: "x" | "y" | "z";
   offset: number; // -1..1, fraction of bounds extent along `axis`
   invert: boolean;
+}
+
+export interface Measurement {
+  id: string;
+  stitchIdA: string;
+  stitchIdB: string;
+  distanceCm: number;
 }
 
 export interface ViewerState {
@@ -24,6 +32,13 @@ export interface ViewerState {
   animationIndex: number; // 0..stitchCount, stitches with sequence_index < this are "built"
   animationPlaying: boolean;
   animationSpeed: number; // stitches per second
+  xray: boolean;
+  quality: QualityName;
+  graphOverlay: boolean;
+  measurements: Measurement[];
+  /** First stitch clicked while a measurement is in progress; cleared once the second click completes it. */
+  pendingMeasurementStitchId: string | null;
+  measurementModeActive: boolean;
 }
 
 export type Listener<T> = (state: T) => void;
@@ -52,7 +67,7 @@ export class Store<T> {
   }
 }
 
-export function createInitialState(stitchCount: number): ViewerState {
+export function createInitialState(stitchCount: number, quality: QualityName = "medium"): ViewerState {
   return {
     selectedStitchId: null,
     hoveredStitchId: null,
@@ -66,5 +81,11 @@ export function createInitialState(stitchCount: number): ViewerState {
     animationIndex: stitchCount,
     animationPlaying: false,
     animationSpeed: 60,
+    xray: false,
+    quality,
+    graphOverlay: false,
+    measurements: [],
+    pendingMeasurementStitchId: null,
+    measurementModeActive: false,
   };
 }
