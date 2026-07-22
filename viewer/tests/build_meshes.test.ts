@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildStructuralScene, commitMatrixUpdates, setInstanceHidden } from "../src/geometry/build_meshes";
-import { buildYarnMeshes } from "../src/geometry/build_yarn";
 import { makeTestGeometry } from "./fixtures";
 
 describe("buildStructuralScene", () => {
@@ -49,17 +48,5 @@ describe("buildStructuralScene", () => {
     const restoredMatrix = new THREE.Matrix4();
     group.mesh.getMatrixAt(0, restoredMatrix);
     expect(restoredMatrix.equals(original)).toBe(true);
-  });
-});
-
-describe("buildYarnMeshes", () => {
-  it("produces one merged mesh per component with positive triangle counts", () => {
-    const doc = makeTestGeometry();
-    const meshes = buildYarnMeshes(doc);
-    expect(meshes.length).toBeGreaterThan(0);
-    for (const mesh of meshes) {
-      const position = mesh.geometry.getAttribute("position");
-      expect(position.count).toBeGreaterThan(0);
-    }
   });
 });

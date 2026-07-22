@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { buildStructuralScene } from "../src/geometry/build_meshes";
-import { buildYarnMeshes } from "../src/geometry/build_yarn";
+import { buildYarnPathScene, QUALITY_PRESETS } from "../src/geometry/build_yarn_paths";
 import { validateGeometry } from "../src/geometry/load";
 import type { GeometryDocument } from "../src/types/geometry";
 
@@ -43,13 +43,20 @@ describe("benchmark: adult_beanie_hdc fixture (1640 stitches)", () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
-  it("builds merged yarn meshes within a generous time budget", () => {
-    const start = performance.now();
-    const meshes = buildYarnMeshes(doc);
-    const elapsed = performance.now() - start;
-    console.log(`[benchmark] yarn build: ${elapsed.toFixed(1)} ms, ${meshes.length} merged meshes`);
-    expect(elapsed).toBeLessThan(5000);
-  });
+  for (const qualityName of ["low", "medium", "high"] as const) {
+    it(`builds crochet-specific yarn-path geometry at "${qualityName}" quality within budget`, () => {
+      const quality = QUALITY_PRESETS[qualityName];
+      const start = performance.now();
+      const scene = buildYarnPathScene(doc, quality);
+      const elapsed = performance.now() - start;
+      console.log(
+        `[benchmark] yarn-path build (${qualityName}): ${elapsed.toFixed(1)} ms, ` +
+          `${scene.components.length} draw calls, ${scene.stats.segmentCount} segments, ` +
+          `~${scene.stats.triangleCount.toLocaleString()} triangles`,
+      );
+      expect(elapsed).toBeLessThan(8000);
+    });
+  }
 
   it("reports fixture JSON size", () => {
     const bytes = Buffer.byteLength(raw, "utf-8");
