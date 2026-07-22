@@ -1,0 +1,123 @@
+# Procedural-yarn / scientific-inspection milestone — completion audit
+
+This audits the milestone landed in commits `a545ee1`..`e6388aa` (on top of
+`ed0fe39`) against its own definition of done, by direct inspection of the
+current repository — not by trusting the prior session's own final report.
+Every row below cites a file, test, or UI control as evidence; "internal
+helper exists" is explicitly not treated as "requirement complete" per this
+audit's own ground rule.
+
+## Baseline (verified before any change in this audit)
+
+Branch: `pattern-to-scientific-3d-visualizer`. `git status`: clean working
+tree, nothing to commit. Commits added by the previous milestone (newest
+first): `e6388aa` docs+canonicalisation, `8d62c48` e2e extension, `e7217bc`
+scientific view modes, `a545ee1` yarn geometry + quality presets — on top of
+`ed0fe39` (frontend pattern editor) and earlier written-pattern-slice work.
+
+| Check | Command | Result |
+|---|---|---|
+| Python tests | `python -m pytest -q` | **347 passed** |
+| Ruff | `python -m ruff check .` | **All checks passed** |
+| Ruff format | `python -m ruff format --check .` | **117 files already formatted** |
+| Mypy | `python -m mypy` (uses `pyproject.toml`'s `packages = ["crochet_reconstruction"]`, not `mypy .` — that scans `tests/` too and hits a duplicate-`conftest` module-resolution error unrelated to any real type issue) | **Success: no issues found in 83 source files** |
+| TypeScript | `npx tsc --noEmit -p .` (in `viewer/`) | **Clean** |
+| Vitest | `npx vitest run` | **97 passed (13 files)** |
+| Playwright | `npx playwright test` | **2 passed** |
+| Production build | `npm run build` | **Success — 561.72 KB / 143.68 KB gzip, one chunk** |
+
+Baseline is clean. Proceeding without further confirmation, per the task's
+own instruction.
+
+## Compliance matrix
+
+| # | Requirement | Status | Evidence | Action |
+|---|---|---|---|---|
+| 1 | Semantic stitch-path inspection **mode** (visual, role-distinguishing, not just text) | **Missing** | `main.ts`'s `wireInspector()` (`viewer/src/main.ts:293-294`) shows only a comma-joined *set* of all role names the stitch happens to use (`"Path roles"` row) as flat text. No toggle to show/hide path segments, no per-role highlight, no "focus role," no legend, no distinction of *which* segment is which role visually. `StitchPathResult.segments[].role` exists as data (`stitch_paths/types.ts`) but nothing in `App.ts`/`main.ts`/`index.html` renders it distinctly. The existing "selected stitch overlay" (`App.applySelectedOverlay`) draws *all* of a selected stitch's segments merged into one solid-colour opaque mesh — it doesn't distinguish roles at all, and exists for a different reason (keep the selection visible/opaque in yarn mode, not path inspection). | Implement a real path-inspection mode (Task below). |
+| 2 | FLO/BLO influence attachment geometry | **Partial** | `plain_stitch.ts:33-46`: `front_loop_only`/`back_loop_only` genuinely offset the attach point laterally along `parent.normal` (opposite signs — verified by `tests/stitch_paths/strategies.test.ts`'s "front and back loop offsets are on opposite sides"). So loop placement **does** measurably affect geometry. | — |
+| 2a | FLO/BLO "exact attachment vs. fallback" distinction, shown in inspector | **Missing** | No strategy in this codebase (`stitch_paths/strategies/*.ts`) has ever modelled a real two-loop stitch top — `buildPlainStitchPaths` always uses the same lateral-offset heuristic. So every non-`both` placement is, by construction, a fallback approximation — but nothing records that as structured data; `warnings: string[]` is free text only, and the inspector doesn't show "resolved attachment region" or an exact/fallback flag anywhere. | Add structured attachment metadata + inspector rows (Task below). |
+| 2b | Graph/path overlay highlights the relevant parent loop | **Missing** | `graph_overlay.ts` draws one-hop `StitchGraph` edges (insertion/neighbour/yarn-sequence/round-closure), colour-coded by *edge type*, not by *path role* — it has no concept of "this is the front-loop attachment." | Covered by the path-inspection mode (role focus can target `front_loop`/`back_loop`). |
+| 3a | Point-to-point (arbitrary, non-stitch-snapped) distance | **Missing** | `measureDistance` (`measurement/measurement.ts`) takes two `stitchId`s; `App.handlePointerDown`'s measurement flow always resolves a click to a `stitchId` via `pickStitch` first — there is no code path that records a raw raycast hit point. | Implement (Task below). |
+| 3b | Stitch-to-stitch distance | **Implemented** | `measureDistance(doc, stitchIdA, stitchIdB)`, wired end-to-end: `App.handlePointerDown` (two-click flow), `main.ts wireMeasurements()` (`#measurement-list`), `tests/measurement.test.ts`, `viewer/e2e/compile-workflow.spec.ts`'s scientific-viewer test. | — |
+| 3c | Object width | **Missing** | No function computes a bounding-box width anywhere in `viewer/src/measurement/` or `App.ts`. `doc.bounds` (`GeometryBounds { min, max }`) exists on every `GeometryDocument` and is already used for clipping/camera-fit, but nothing derives a labelled "width" measurement from it. | Implement (Task below). |
+| 3d | Object height | **Missing** | Same as width. `doc.measurements.overall_height_cm` exists on the backend-computed `GeometryMeasurements` and is already shown in the info panel (`main.ts wireInfoPanel`, row `"Overall height"`) — but that is the *pattern's own* backend estimate, not a user-triggered *measurement* with an id/type/removability like the other measurement records. | Implement as a real `Measurement` record type (can reuse `doc.bounds`, independent of the backend `overall_height_cm` field, so it works even if that field is ever removed). |
+| 3e | Round circumference | **Partial** | `measureRoundCircumference(doc, componentId, roundIndex)` exists and is tested (`tests/measurement.test.ts`) — but it is dead code from the UI's perspective: no button, no store field, no inspector/measurement-list entry calls it. This was already flagged honestly in `docs/measurement-tools.md`'s "Known limitations" from the prior phase. | Wire to UI as a real `Measurement` record (Task below). |
+| 3f | Measurement model shape (id/type/label/value/unit/source refs/approximation flag/creation context/fingerprint) | **Missing** | Current `Measurement` (`state/store.ts`) is `{ id, stitchIdA, stitchIdB, distanceCm }` — no `type` discriminant, no `unit` field (cm is hardcoded into the display string, not data), no approximation flag (the "(approx.)" suffix is hardcoded in `main.ts`'s template string, not derived from the record), no geometry-fingerprint association. | Replace with a tagged union per the brief's example shape (Task below) — this is the one change in this audit with real migration risk (existing tests/e2e reference the old shape), so it is done carefully with all call sites updated in the same commit. |
+| 4a | Clipping axes X/Y/Z | **Implemented** | `#clip-axis` `<select>` (`index.html`), `buildClippingPlane` (`clipping/clipping.ts`) handles all three via `AXIS_NORMAL`. `tests/clipping.test.ts` covers axis selection. | — |
+| 4b | Offset slider | **Implemented** | `#clip-offset` range input, `-100..100` mapped to `-1..1` fraction of bounds extent. | — |
+| 4c | Numeric offset entry | **Missing** | Only the range input exists; no paired `<input type="number">` or readout of the current fraction/cm value. | Implement (Task below). |
+| 4d | Invert | **Implemented** | `#clip-invert` checkbox, `ClippingState.invert`, tested. | — |
+| 4e | Enable/disable | **Implemented** | `#clip-enabled` checkbox. | — |
+| 4f | Reset | **Missing** | No control resets clipping to `{ enabled: false, axis: "z", offset: 0, invert: false }` on demand — the only reset path is an implicit one, on recompile (`loadGeometryDocument`). | Implement a `#clip-reset` button (Task below). |
+| 4g | Visible plane helper | **Deferred by design** | Not implemented. **Reason**: Three.js's `material.clippingPlanes` clips per-material with no visual plane indicator by default; a real helper mesh would need its own bounds-relative sizing/rotation logic duplicating `buildClippingPlane`'s axis math, is a UI/aesthetics investment, and — critically — no user-facing confusion has been observed or reported that a helper would fix (the axis/offset/invert controls already state the plane unambiguously). **Impact**: users must infer the plane's position from the clipped geometry itself, not from an on-screen gizmo. Revisit if user feedback says the plane's position is hard to predict from the controls alone. | Future milestone. |
+| 4h | Structural geometry obeys clipping | **Implemented** | `App.applyClipping` includes `structural.groups[].mesh.material` in the materials list passed to `applyClippingToMaterials`. | — |
+| 4i | Yarn geometry obeys clipping | **Implemented** | Same call includes `yarnScene.components[].mesh.material`. | — |
+| 4j | X-ray mode + clipping compatible | **Implemented** | Both are independent material-property mutations (`applyOpacityAndXray`, `applyClipping`) applied every `applyState()` call — no interaction bug found; not explicitly tested together until this audit (see tests below). | Add an explicit combined test. |
+| 4k | Selected-stitch highlighting vs. clipping — **explicit, documented policy** | **Missing (accidental behaviour, undocumented)** | The structural wireframe-torus marker (`selection/highlight.ts`) and the yarn "selected stitch overlay" (`App.applySelectedOverlay`, `MeshBasicMaterial` with no `clippingPlanes` set) are **never** included in `applyClipping`'s materials list — they always render regardless of the active clip plane, while the instance-colour highlight *inside* a clipped structural mesh **does** get clipped away with its triangles. This is exactly the "selected geometry disappearing without explanation" (or, here, reappearing unexpectedly through a clip plane) the brief warns about — it works today only by accident, and was never written down as a decision. | Formalise: selection marker/overlay always ignore clipping (so the user never loses track of *where* their selection is); document this explicitly (Task below). |
+| 4l | Graph overlays vs. clipping | **Missing (accidental — always ignores clipping)** | `graph_overlay.ts`'s `LineSegments` material is never added to `applyClipping`'s materials list. | Make graph overlay respect clipping like real geometry (Task below) — distinguished from 4k because an overlay of *real edges* should track what's actually visible, whereas the *selection indicator* should not. |
+| 4m | Measurement overlays vs. clipping | **Missing (accidental — always ignores clipping)** | Same gap for `measurement/measurement.ts`'s `buildMeasurementLine` (`LineDashedMaterial`). | Same fix as 4l. |
+| 4n | Second clipping plane | **Deferred by design** | Not implemented. **Reason**: the current architecture threads exactly one `THREE.Plane | null` through `applyClippingToMaterials`; a second plane multiplies UI surface (a second axis/offset/invert/enabled control group) and interaction semantics (union vs. intersection of the two half-spaces need a decision) for a use case (cutting a cross-section wedge) not requested or measured as needed this milestone. **Impact**: users cannot isolate a slab/wedge of the model, only a single half-space. | Future milestone, if requested. |
+| 5 | Visual-regression (deterministic screenshot) testing | **Missing** | `viewer/e2e/compile-workflow.spec.ts` is Playwright *workflow* testing only (`expect(locator)...`), zero `toHaveScreenshot()` calls anywhere in the repository (confirmed by search). Explicitly flagged as a likely gap in the prior session's own final summary. | Implement (Task below). |
+| 6 | Formal, committed JSON Schema artefacts | **Missing** | No `schemas/` directory, no `*.schema.json` file anywhere in the repository (confirmed by `find`). `docs/open-source-resource-adoption.md`'s existing JSON Schema entry documents only a **reproducible-generation command**, explicitly choosing not to commit a static file — that was a reasonable choice for the written-pattern slice alone, but the brief for *this* audit explicitly asks for committed, versioned artefacts with a match-test, which is a stricter bar this repository doesn't clear yet. `GeometryDocument.schema_version` (`geometry/models.py:14,111`) and `StitchGraph.schema_version` (`graph/models.py:112`) **do** already exist as version fields — versioning itself is not missing, only the committed-artefact + match-test part. | Implement (Task below). |
+| 7a | Backend timing (parser/graph/geometry/API/payload size) | **Partial** | No dedicated benchmark test exists for the Python side at all (`tests/` has no `test_benchmark*.py`); `viewer/tests/benchmark.test.ts` only measures the *frontend's* JSON-parse/validate/build steps against an already-serialized fixture file, never the Python compile pipeline that produced it. | Add a Python benchmark (Task below). |
+| 7b | Frontend scene-build timing | **Implemented** | `viewer/tests/benchmark.test.ts`: validation, structural build, yarn build at all 3 quality presets, fixture JSON size — all logged with generous ceiling assertions, on the 1640-stitch fixture. Numbers recorded in `docs/yarn-material-and-lighting.md`. | — |
+| 7c | Raycast timing (structural vs. yarn) | **Missing** | Explicitly self-flagged as missing in the prior session's own resource-adoption doc ("No dedicated raycast-time benchmark exists yet"). Verified still true: no test calls `Picker.pick` or `App`'s yarn raycast path in a timed loop anywhere. | Implement (Task below). |
+| 7d | Interaction-timing (highlight update, X-ray switch, graph-overlay update, quality switch, clipping update, measurement creation) | **Missing** | None of these have a timed test. | Implement a representative subset (Task below) — not literally every listed interaction, prioritising the ones with real cost (quality switch = full yarn rebuild; graph-overlay update = per-click edge filter). |
+| 7e | Repeated model-replacement resource-leak check | **Partial** | `viewer/e2e/compile-workflow.spec.ts`'s scientific-viewer test already does **one** recompile and checks `renderer.info.memory.geometries` doesn't increase — a real, passing check, but only a single replacement, not the brief's suggested 10x-same/10x-alternating stress pattern, and it doesn't check measurement/overlay state resets under repetition. | Extend (Task below) — as a Vitest test against `App` directly (faster and more iterations than driving it through Playwright + a real backend each time). |
+| 8 | Yarn-fuzz evaluation + documented decision | **Missing** | No mention of "fuzz," "fibre," "halo," "shell texture," or similar anywhere in `docs/` or `viewer/src/materials/`. `docs/yarn-material-and-lighting.md` documents the sheen-based approach but never frames it as a considered alternative to fuzz, nor records a comparison. | Implement the evaluation and decision (Task below). |
+| 9a | Inspector shows stitch strategy | **Implemented** | `main.ts` row `["Geometry strategy", pathResult?.strategyName ?? "n/a"]`. | — |
+| 9b | Inspector shows semantic path roles | **Partial** | Shows the flat set of roles used (see #1) — not selectable/focusable, not tied to a visual highlight. | Covered by #1's fix. |
+| 9c | Inspector shows selected path role | **Missing** | No concept of a "selected role" exists yet. | Covered by #1's fix. |
+| 9d | Inspector shows loop-placement request / resolved attachment / fallback flag | **Partial/Missing** | Shows raw `loop_placement` only (`["Loop placement", stitch.loop_placement]`); no resolved-attachment or fallback rows. | Covered by #2a's fix. |
+| 9e | Inspector shows parent/child relationships | **Implemented** | `"Parents"`, `"Children"`, `"Previous (yarn sequence)"`, `"Next (yarn sequence)"` rows. | — |
+| 9f | Measurement context in inspector, approximation labelling | **Partial** | Measurement list shows "(approx.)" as a hardcoded string suffix, not derived from a real approximation flag on the record (see #3f); no measurement context appears in the *inspector* panel itself (it has its own separate `#measurement-list`). | Improves naturally once #3f lands (a real `approximate: boolean` field replaces the hardcoded suffix). |
+| 9g | Accessibility: labels, toggle-state announcement, text-available results, non-colour-only roles, keyboard clear/change, focus after recompile, reduced-motion respected | **Partial** | Every existing control is a native `<label>`/`<select>`/`<button>`/`<input>` (keyboard-reachable by construction, per `docs/scientific-viewer-spec.md`'s pre-existing accessibility section) and reduced-motion is already respected (`App.ts:82`, `OrbitControls.enableDamping`). Toggle *state* (checked/unchecked) is native checkbox state, announced by any screen reader without extra ARIA. Measurement results are already plain text in `#measurement-list`. **What's genuinely new here**: the path-inspection mode's role list/legend must follow the same "not colour-only" rule the existing selection marker already follows — this is a design constraint on the *new* feature (#1), not a retrofit of old ones. | Apply the existing convention to the new path-mode UI as it's built; no separate accessibility work needed for already-implemented controls. |
+
+## Summary
+
+- **Already fully correct, verified, not touched**: stitch-path strategies (sc/hdc/dc/chain/slip-stitch + increase/decrease augmentation), parallel-transport tube generation, yarn material, 3 lighting presets, 3 quality presets, X-ray opacity capping, one-hop graph overlay (as an edge-type overlay — not a path-role overlay, which is a different feature), stitch-to-stitch measurement, clipping's core axis/offset/invert/enable controls, canonicalisation audit + test vectors, research-resource documentation. All confirmed by direct code + test inspection above, not by re-trusting the prior handover claim.
+- **Partial, needs completion**: FLO/BLO fallback semantics, round-circumference/backend-height wiring to real UI measurement records, clipping numeric entry + reset, clipping-vs-overlay policy, backend/raycast/lifecycle benchmark coverage.
+- **Missing, implemented in this audit**: semantic path-inspection mode, object width/height/point-to-point measurements, measurement-record data model, visual-regression suite, committed JSON Schema artefacts, raycast/lifecycle benchmarks, yarn-fuzz evaluation.
+- **Deferred by design, with reasons recorded above**: visible clip-plane helper mesh, second clipping plane.
+
+Implementation of every "Missing"/"Partial" row (except where marked
+"Deferred by design") follows in this same audit pass; see the git log for
+the commits that closed each one, and the "Final report" delivered at the
+end of this task for exact evidence per item.
+
+## Post-implementation reconciliation
+
+Every row above marked **Missing** or **Partial** (excluding the two rows
+explicitly marked **Deferred by design**, which remain deferred, with
+their original reasons still standing) is now **Implemented**. This
+section is the "as fixed" companion to the "as found" table above — the
+table itself is left unedited above as the historical audit record; this
+section is where each gap's resolution is cited so nothing here reads as
+"absent" once it no longer is.
+
+| # | Requirement | Resolution |
+|---|---|---|
+| 1 | Semantic path-inspection mode | `viewer/src/selection/path_inspection.ts` (role-coloured tube mesh + dimmed parent/next context, focus-by-role filtering), wired via `App.applySelectedOverlay`'s `pathModeActive` branch, `#path-mode-toggle`/`#path-role-select`/`#path-clear-focus`/`#path-role-legend` in `index.html`, `wirePathInspection()` in `main.ts`. Inspector's "Path role in focus" row. Tests: `viewer/tests/path_inspection.test.ts` (7 tests), e2e steps 3b/5b in `compile-workflow.spec.ts`. |
+| 2a | FLO/BLO exact-vs-fallback metadata | `LoopAttachment` type added to `StitchPathResult` (`stitch_paths/types.ts`); computed in `plain_stitch.ts`/`chain.ts`/`slip_stitch.ts`; inspector's "Resolved attachment"/"Exact attachment" rows. Tests: 7 new cases in `tests/stitch_paths/strategies.test.ts`. |
+| 2b | Graph/path overlay highlights the relevant parent loop | Satisfied by #1: focusing the `front_loop`/`back_loop` role in path-inspection mode shows exactly that segment. |
+| 3a | Arbitrary point-to-point measurement | `createPointDistanceMeasurement` (`measurement/measurement.ts`), `App.raycastPoint`/`measurementPointMode` click flow, `#measurement-kind-select`. |
+| 3c | Object width | `createObjectWidthMeasurement`, `#measure-width` button. |
+| 3d | Object height | `createObjectHeightMeasurement`, `#measure-height` button. |
+| 3e | Round circumference wired to UI | `createRoundCircumferenceMeasurement`, `#measure-round-circumference` button (uses the selected stitch's round). |
+| 3f | Measurement data-model shape | `Measurement` tagged union (`measurement/types.ts`): `id`/`type`/`label`/`valueCm`/`unit`/`approximate`/`createdAtMs`/`geometryFingerprint` plus per-type fields. `main.ts`'s `formatMeasurement` renders any variant generically. Tests: `tests/measurement.test.ts` (14 tests). |
+| 4c | Clipping numeric offset entry | `#clip-offset-number`, mirrored both ways with the slider (`wireClippingControls`). |
+| 4f | Clipping reset | `#clip-reset` button; also surfaced a real pre-existing gap (clipping DOM controls were write-only, never reflecting store state) — fixed with a reactive sync subscription in the same change. |
+| 4k/4l/4m | Clipping-vs-overlay policy | Documented and made consistent in `App.applyClipping`'s docstring and `docs/clipping-and-section-views.md`: selection marker/overlay always ignore clipping; graph overlay and measurement lines now respect it (previously neither policy was intentional). Verified via the new `App.getClippingDebugInfo()` test-only hook, exercised in `compile-workflow.spec.ts`. |
+| 5 | Visual-regression suite | `viewer/e2e/visual-regression.spec.ts`, 9 deterministic screenshots via direct `loadGeometryDocument` injection (covers chain/slip-stitch/sc/hdc/dc/increase/decrease/FLO/BLO — none reachable through the grammar — plus yarn/structural/X-ray/clipping/graph-overlay/path-inspection/measurement modes). Canvas-only screenshots (not full-page) after discovering full-page screenshots baked in a stale info panel from bypassing the compile flow. |
+| 6 | Formal JSON Schema artefacts | `schemas/*.schema.json` (5 files), generated by `src/crochet_reconstruction/api/schema_export.py`, match-tested by `tests/test_schema_export.py` (7 tests). `docs/schema-artifacts.md`. |
+| 7a | Backend pipeline benchmarks | `tests/test_benchmark.py` — parser/graph/geometry/full-API-round-trip timings + payload size, 3 fixture sizes. |
+| 7c | Raycast timing | `viewer/tests/benchmark.test.ts`'s new "benchmark: raycasting" describe block — found yarn raycasting is ~56x slower than structural on the reference fixture, confirming (not just predicting) the `three-mesh-bvh` re-evaluation's hypothesis. |
+| 7d | Other interaction timings | Same file's "benchmark: other interaction operations" block (highlight, graph-overlay, clipping, measurement creation). |
+| 7e | Lifecycle/resource-leak stress | `viewer/e2e/lifecycle-stress.spec.ts` — 5x same-model and 5x alternating-model recompiles (reduced from the suggested 10 for suite runtime, documented in the file and in `docs/performance-benchmarks.md`), asserting bounded `renderer.info.memory.geometries` and measurement-list reset on every iteration. |
+| 8 | Yarn-fuzz evaluation | `docs/yarn-material-and-lighting.md`'s new "Yarn fuzz — evaluated, deferred" section: five approaches compared against the medium fixture on visual benefit/triangle cost/draw-calls/X-ray/clipping/selection/zoom. **Decision: not implemented** — every geometry-based option would compound the just-measured raycast-cost problem (#7c); the screen-space option would require the `postprocessing` dependency already deferred twice for lack of measured need. Sheen-only remains the yarn-surface treatment. |
+| 9a-9g | Inspector/accessibility | Covered by #1's and #2a's new inspector rows; also fixed a related dead-code gap found in passing — `GRAPH_OVERLAY_LEGEND` was exported by the prior milestone but never rendered anywhere; now wired to `#graph-overlay-legend`. |
+
+Every regression suite (pytest, ruff, ruff format, mypy, tsc, vitest,
+Playwright workflow, Playwright visual-regression, Playwright lifecycle
+stress, production build) was re-run green after these changes — see the
+final report for exact commands and results.
