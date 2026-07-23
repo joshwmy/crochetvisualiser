@@ -9,42 +9,132 @@
   <body>
     <div id="app">
       <aside id="editor-panel">
-        <h1>Written pattern</h1>
-        <p class="subtitle">US terminology only. See the example for supported syntax.</p>
+        <div class="button-row" id="input-mode-tabs" role="tablist" aria-label="Pattern input mode">
+          <button type="button" data-mode="written" role="tab" aria-selected="true">Written pattern</button>
+          <button type="button" data-mode="diagram" role="tab" aria-selected="false">SVG diagram</button>
+        </div>
 
-        <form id="compile-form">
-          <label for="pattern-source">Pattern text</label>
-          <textarea
-            id="pattern-source"
-            rows="14"
-            spellcheck="false"
-            aria-describedby="compile-status"
-          ></textarea>
+        <div id="written-pattern-panel">
+          <h1>Written pattern</h1>
+          <p class="subtitle">US terminology only. See the example for supported syntax.</p>
 
-          <label for="terminology-select">Terminology</label>
-          <select id="terminology-select">
-            <option value="US">US</option>
-          </select>
+          <form id="compile-form">
+            <label for="pattern-source">Pattern text</label>
+            <textarea
+              id="pattern-source"
+              rows="14"
+              spellcheck="false"
+              aria-describedby="compile-status"
+            ></textarea>
+
+            <label for="terminology-select">Terminology</label>
+            <select id="terminology-select">
+              <option value="US">US</option>
+            </select>
+
+            <div class="button-row">
+              <button id="compile-button" type="submit">Interpret and render</button>
+              <button id="example-button" type="button">Load example</button>
+              <button id="clear-button" type="button">Clear</button>
+            </div>
+            <p class="hint">Ctrl+Enter to compile.</p>
+          </form>
+
+          <p id="compile-status" role="status" aria-live="polite"></p>
+
+          <section aria-labelledby="summary-heading">
+            <h2 id="summary-heading">Summary</h2>
+            <dl id="compile-summary"></dl>
+          </section>
+
+          <section aria-labelledby="diagnostics-heading">
+            <h2 id="diagnostics-heading">Diagnostics</h2>
+            <ul id="diagnostics-list" aria-label="Compile diagnostics"></ul>
+          </section>
+        </div>
+
+        <div id="diagram-panel" hidden>
+          <h1>SVG diagram</h1>
+          <p class="subtitle">
+            Clean vector SVG only: one primary circular/radial chart, semantic
+            metadata (<code>data-stitch-type</code>, <code>&lt;use&gt;</code>,
+            labelled ids/classes) preferred over shape guessing. Raster images,
+            hand-drawn charts, and garment schematics are not supported.
+          </p>
+
+          <label for="diagram-file-input">Upload SVG file</label>
+          <input type="file" id="diagram-file-input" accept="image/svg+xml,.svg" />
+
+          <label for="diagram-source">Or paste SVG source</label>
+          <textarea id="diagram-source" rows="8" spellcheck="false"></textarea>
 
           <div class="button-row">
-            <button id="compile-button" type="submit">Interpret and render</button>
-            <button id="example-button" type="button">Load example</button>
-            <button id="clear-button" type="button">Clear</button>
+            <button id="diagram-analyse-button" type="button">Analyse diagram</button>
           </div>
-          <p class="hint">Ctrl+Enter to compile.</p>
-        </form>
 
-        <p id="compile-status" role="status" aria-live="polite"></p>
+          <p id="diagram-status" role="status" aria-live="polite"></p>
 
-        <section aria-labelledby="summary-heading">
-          <h2 id="summary-heading">Summary</h2>
-          <dl id="compile-summary"></dl>
-        </section>
+          <section aria-labelledby="diagram-diagnostics-heading">
+            <h2 id="diagram-diagnostics-heading">Diagnostics</h2>
+            <ul id="diagram-diagnostics-list" aria-label="Diagram diagnostics"></ul>
+          </section>
 
-        <section aria-labelledby="diagnostics-heading">
-          <h2 id="diagnostics-heading">Diagnostics</h2>
-          <ul id="diagnostics-list" aria-label="Compile diagnostics"></ul>
-        </section>
+          <section aria-labelledby="diagram-summary-heading" id="diagram-summary-section" hidden>
+            <h2 id="diagram-summary-heading">Analysis summary</h2>
+            <dl id="diagram-summary"></dl>
+          </section>
+
+          <section aria-labelledby="diagram-preview-heading" id="diagram-preview-section" hidden>
+            <h2 id="diagram-preview-heading">2D preview</h2>
+            <ul id="diagram-confidence-legend" aria-label="Confidence colour legend"></ul>
+            <div class="button-row">
+              <label><input type="checkbox" id="diagram-show-relationships" checked /> Relationships</label>
+              <label><input type="checkbox" id="diagram-only-unclassified" /> Unclassified only</label>
+              <label><input type="checkbox" id="diagram-only-low-confidence" /> Low confidence only</label>
+            </div>
+            <div id="diagram-preview" role="img" aria-label="Diagram preview"></div>
+
+            <h3>Symbols</h3>
+            <ul id="diagram-symbol-list" aria-label="Extracted symbols"></ul>
+
+            <div id="diagram-correction-panel" hidden>
+              <h3>Correct selected symbol</h3>
+              <dl id="diagram-selected-symbol-info"></dl>
+              <label for="diagram-stitch-type-select">Stitch type</label>
+              <select id="diagram-stitch-type-select">
+                <option value="">(leave unclassified)</option>
+                <option value="magic_ring">Magic ring</option>
+                <option value="chain">Chain</option>
+                <option value="slip_stitch">Slip stitch</option>
+                <option value="single_crochet">Single crochet</option>
+                <option value="half_double_crochet">Half double crochet</option>
+                <option value="double_crochet">Double crochet</option>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+                <option value="join">Join / round closure</option>
+              </select>
+              <div class="button-row">
+                <label><input type="checkbox" id="diagram-mark-ignored" /> Ignore this symbol</label>
+                <label><input type="checkbox" id="diagram-mark-round-start" /> Round start</label>
+                <label><input type="checkbox" id="diagram-mark-round-closure" /> Round closure</label>
+              </div>
+              <div class="button-row">
+                <button id="diagram-apply-correction" type="button">Apply</button>
+                <button id="diagram-restore-automatic" type="button">Restore automatic</button>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="diagram-reverse-direction" type="button">Reverse round direction</button>
+              <button id="diagram-reset-corrections" type="button">Reset all corrections</button>
+            </div>
+          </section>
+
+          <div class="button-row">
+            <button id="diagram-compile-button" type="button" disabled>Compile to 3D</button>
+            <button id="diagram-return-to-review-button" type="button" hidden>Return to 2D review</button>
+          </div>
+        </div>
       </aside>
 
       <canvas id="viewport" aria-label="3D crochet stitch viewer"></canvas>

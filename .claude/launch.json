@@ -7,6 +7,12 @@
       "runtimeArgs": ["run", "dev", "--", "--host"],
       "cwd": "viewer",
       "port": 5173
+    },
+    {
+      "name": "crochet-api",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "crochet_reconstruction.api.app:create_app", "--factory", "--port", "8000"],
+      "port": 8000
     }
   ]
 }

@@ -1,14 +1,18 @@
 import { App } from "./app/App";
 import { CompileController } from "./app/compile_controller";
+import { DiagramController } from "./app/diagram_controller";
 import { loadGeometry, GeometryLoadError } from "./geometry/load";
 import type { ViewPreset } from "./camera/camera";
 import type { LightingPreset } from "./scene/scene";
 import type { ClippingState, QualityName, ViewerState } from "./state/store";
 import type { CompileState } from "./state/compile_store";
+import type { DiagramState } from "./state/diagram_store";
 import { AMIGURUMI_EXAMPLE } from "./examples";
 import { PATH_ROLE_LEGEND } from "./selection/path_inspection";
 import { GRAPH_OVERLAY_LEGEND } from "./selection/graph_overlay";
 import type { SegmentRole } from "./geometry/stitch_paths/types";
+import { renderDiagramOverlay, CONFIDENCE_LEGEND } from "./diagram/svg_overlay";
+import type { DiagramSymbol } from "./types/diagram";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const errorBanner = document.getElementById("viewer-error") as HTMLDivElement;
@@ -65,10 +69,13 @@ async function main(): Promise<void> {
   }
 
   const controller = new CompileController(app);
+  const diagramController = new DiagramController(app);
 
-  // Test-only hook consumed by e2e/compile-workflow.spec.ts (see
-  // App.getRendererInfo's docstring) — never read by application code.
-  (window as unknown as { __app: App }).__app = app;
+  // Test-only hooks consumed by e2e specs (see App.getRendererInfo's
+  // docstring) — never read by application code.
+  (window as unknown as { __app: App; __diagramController: DiagramController }).__app = app;
+  (window as unknown as { __diagramController: DiagramController }).__diagramController =
+    diagramController;
 
   wireViewControls(app);
   wireTimeline(app);
@@ -78,6 +85,8 @@ async function main(): Promise<void> {
   wireMeasurements(app);
   wireResize(app);
   wireCompileWorkflow(app, controller);
+  wireInputModeTabs();
+  wireDiagramWorkflow(app, diagramController);
   refreshDocDependentUI(app);
 }
 
@@ -607,6 +616,221 @@ function wireCompileWorkflow(app: App, controller: CompileController): void {
         return `<li data-severity="${d.severity}">${SEVERITY_LABEL[d.severity] ?? d.severity}: ${escapeHtml(d.message)}${location}</li>`;
       })
       .join("");
+  });
+}
+
+/** Switches between the written-pattern and SVG-diagram input panels.
+ * Purely a visibility toggle — neither panel's state is reset by switching,
+ * so a user can flip back and forth without losing draft text or a
+ * previous analysis (brief: "Do not remove or damage the written-pattern
+ * workflow"). */
+function wireInputModeTabs(): void {
+  const tabs = qs<HTMLDivElement>("input-mode-tabs");
+  const writtenPanel = qs<HTMLDivElement>("written-pattern-panel");
+  const diagramPanel = qs<HTMLDivElement>("diagram-panel");
+
+  tabs.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const mode = target.dataset.mode;
+    if (!mode) return;
+    const isDiagram = mode === "diagram";
+    writtenPanel.hidden = isDiagram;
+    diagramPanel.hidden = !isDiagram;
+    for (const button of tabs.querySelectorAll<HTMLButtonElement>("button[data-mode]")) {
+      button.setAttribute("aria-selected", String(button.dataset.mode === mode));
+    }
+  });
+}
+
+const DIAGRAM_STATUS_LABELS: Record<DiagramState["status"], string> = {
+  idle: "",
+  analysing: "Analysing…",
+  analysed: "Analysed.",
+  compiling: "Compiling…",
+  compiled: "Compiled successfully.",
+  network_error: "Could not reach the server, or the request failed.",
+  internal_error: "The compiled result could not be loaded.",
+};
+
+function diagramDiagnosticList(
+  diagnostics: import("./types/diagram").DiagramDiagnostic[],
+): string {
+  return diagnostics
+    .map((d) => {
+      const location = d.symbol_id ? `<div class="diagnostic-location">Symbol ${d.symbol_id}</div>` : "";
+      const suggestion = d.suggested_action
+        ? `<div class="diagnostic-location">${escapeHtml(d.suggested_action)}</div>`
+        : "";
+      return `<li data-severity="${d.severity}">${SEVERITY_LABEL[d.severity] ?? d.severity}: ${escapeHtml(d.message)}${location}${suggestion}</li>`;
+    })
+    .join("");
+}
+
+function wireDiagramWorkflow(app: App, controller: DiagramController): void {
+  const fileInput = qs<HTMLInputElement>("diagram-file-input");
+  const sourceTextarea = qs<HTMLTextAreaElement>("diagram-source");
+  const analyseButton = qs<HTMLButtonElement>("diagram-analyse-button");
+  const status = qs<HTMLParagraphElement>("diagram-status");
+  const diagnosticsEl = qs<HTMLUListElement>("diagram-diagnostics-list");
+  const summarySection = qs<HTMLElement>("diagram-summary-section");
+  const summaryEl = qs<HTMLDListElement>("diagram-summary");
+  const previewSection = qs<HTMLElement>("diagram-preview-section");
+  const previewContainer = qs<HTMLDivElement>("diagram-preview");
+  const symbolListEl = qs<HTMLUListElement>("diagram-symbol-list");
+  const legendEl = qs<HTMLUListElement>("diagram-confidence-legend");
+  const correctionPanel = qs<HTMLDivElement>("diagram-correction-panel");
+  const selectedInfoEl = qs<HTMLDListElement>("diagram-selected-symbol-info");
+  const stitchTypeSelect = qs<HTMLSelectElement>("diagram-stitch-type-select");
+  const markIgnored = qs<HTMLInputElement>("diagram-mark-ignored");
+  const markRoundStart = qs<HTMLInputElement>("diagram-mark-round-start");
+  const markRoundClosure = qs<HTMLInputElement>("diagram-mark-round-closure");
+  const applyButton = qs<HTMLButtonElement>("diagram-apply-correction");
+  const restoreButton = qs<HTMLButtonElement>("diagram-restore-automatic");
+  const reverseButton = qs<HTMLButtonElement>("diagram-reverse-direction");
+  const resetButton = qs<HTMLButtonElement>("diagram-reset-corrections");
+  const compileButton = qs<HTMLButtonElement>("diagram-compile-button");
+  const returnButton = qs<HTMLButtonElement>("diagram-return-to-review-button");
+  const showRelationships = qs<HTMLInputElement>("diagram-show-relationships");
+  const onlyUnclassified = qs<HTMLInputElement>("diagram-only-unclassified");
+  const onlyLowConfidence = qs<HTMLInputElement>("diagram-only-low-confidence");
+
+  legendEl.innerHTML = CONFIDENCE_LEGEND.map(
+    ({ color, label }) =>
+      `<li><span class="legend-swatch" style="background:${color}"></span> ${escapeHtml(label)}</li>`,
+  ).join("");
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    sourceTextarea.value = await file.text();
+  });
+
+  analyseButton.addEventListener("click", () => {
+    void controller.analyse(sourceTextarea.value);
+  });
+
+  function currentFilters() {
+    return {
+      visibleRounds: null,
+      showRelationships: showRelationships.checked,
+      onlyUnclassified: onlyUnclassified.checked,
+      onlyLowConfidence: onlyLowConfidence.checked,
+    };
+  }
+
+  for (const checkbox of [showRelationships, onlyUnclassified, onlyLowConfidence]) {
+    checkbox.addEventListener("change", () => {
+      controller.store.set({ filters: currentFilters() });
+    });
+  }
+
+  function selectedSymbol(state: DiagramState): DiagramSymbol | null {
+    if (!state.document || !state.selectedSymbolId) return null;
+    return state.document.symbols.find((s) => s.symbol_id === state.selectedSymbolId) ?? null;
+  }
+
+  applyButton.addEventListener("click", () => {
+    const state = controller.store.get();
+    if (!state.selectedSymbolId) return;
+    controller.setSymbolOverride(state.selectedSymbolId, {
+      stitch_type: (stitchTypeSelect.value || null) as never,
+      ignored: markIgnored.checked || null,
+      round_start: markRoundStart.checked || null,
+      round_closure: markRoundClosure.checked || null,
+    });
+  });
+
+  restoreButton.addEventListener("click", () => {
+    const state = controller.store.get();
+    if (!state.selectedSymbolId) return;
+    controller.setSymbolOverride(state.selectedSymbolId, null);
+  });
+
+  reverseButton.addEventListener("click", () => {
+    const state = controller.store.get();
+    const currentDirection = state.document?.construction.direction;
+    controller.setConstructionOverride({
+      direction: currentDirection === "counterclockwise" ? "clockwise" : "counterclockwise",
+    });
+  });
+
+  resetButton.addEventListener("click", () => controller.resetCorrections());
+
+  compileButton.addEventListener("click", () => void controller.compile());
+  returnButton.addEventListener("click", () => controller.returnToReview());
+
+  controller.store.subscribe((state) => {
+    status.textContent = DIAGRAM_STATUS_LABELS[state.status] || state.errorMessage || "";
+    status.dataset.status = state.status;
+    analyseButton.disabled = state.status === "analysing" || state.status === "compiling";
+    compileButton.disabled =
+      !state.document || state.status === "analysing" || state.status === "compiling";
+    returnButton.hidden = state.viewStage !== "compiled";
+    previewSection.hidden = !state.document || state.viewStage === "compiled";
+
+    diagnosticsEl.innerHTML = state.errorMessage
+      ? `<li data-severity="error">${SEVERITY_LABEL.error}: ${escapeHtml(state.errorMessage)}</li>${diagramDiagnosticList(state.diagnostics)}`
+      : diagramDiagnosticList(state.diagnostics);
+
+    if (state.summary) {
+      summarySection.hidden = false;
+      const rows: [string, string][] = [
+        ["Symbols", String(state.summary.symbolCount)],
+        ["Classified", String(state.summary.classifiedCount)],
+        ["Unclassified", String(state.summary.unclassifiedCount)],
+        ["Rounds", String(state.summary.roundCount)],
+        ["Low confidence", String(state.summary.lowConfidenceCount)],
+        ["Ready to compile", state.summary.readyToCompile ? "Yes" : "No — resolve errors below"],
+      ];
+      summaryEl.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+    } else {
+      summarySection.hidden = true;
+    }
+
+    if (!state.document || state.viewStage === "compiled") {
+      symbolListEl.innerHTML = "";
+      correctionPanel.hidden = true;
+      if (state.viewStage === "compiled") refreshDocDependentUI(app);
+      return;
+    }
+
+    renderDiagramOverlay(previewContainer, state.document, state.filters, {
+      selectedSymbolId: state.selectedSymbolId,
+      onSelectSymbol: (symbolId) => controller.selectSymbol(symbolId),
+    });
+
+    symbolListEl.innerHTML = state.document.symbols
+      .map((s) => {
+        const selected = s.symbol_id === state.selectedSymbolId ? " data-selected" : "";
+        const label = s.stitch_type ?? (s.ambiguous ? "ambiguous" : "unclassified");
+        return `<li data-symbol-id="${s.symbol_id}"${selected}><button type="button" data-select-symbol="${s.symbol_id}">${s.symbol_id}: ${escapeHtml(label)} (${s.confidence_band}${s.round_index !== null ? `, round ${s.round_index}` : ""})</button></li>`;
+      })
+      .join("");
+
+    const symbol = selectedSymbol(state);
+    correctionPanel.hidden = !symbol;
+    if (symbol) {
+      selectedInfoEl.innerHTML = [
+        ["Symbol ID", symbol.symbol_id],
+        ["Source element", symbol.source_element_id ?? "(none)"],
+        ["Classification method", symbol.classification_method],
+        ["Confidence", `${symbol.confidence.toFixed(2)} (${symbol.confidence_band})`],
+        ["Round", symbol.round_index !== null ? String(symbol.round_index) : "(unassigned)"],
+      ]
+        .map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`)
+        .join("");
+      stitchTypeSelect.value = symbol.stitch_type ?? "";
+      const override = state.corrections.symbol_overrides[symbol.symbol_id];
+      markIgnored.checked = override?.ignored === true;
+      markRoundStart.checked = symbol.round_start;
+      markRoundClosure.checked = symbol.round_closure;
+    }
+  });
+
+  symbolListEl.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const symbolId = target.dataset.selectSymbol;
+    if (symbolId) controller.selectSymbol(symbolId);
   });
 }
 
