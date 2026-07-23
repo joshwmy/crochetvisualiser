@@ -156,10 +156,28 @@ Written pattern
   -> viewer: pasted pattern -> live 3D model (no manual fixture regeneration)
 ```
 
-Diagram parsing (SVG/PNG crochet charts) will later feed the same
-`Component`/`StitchGraph` boundary as a third producer, alongside the
-existing structured-JSON path and this written-pattern path — see
-`docs/written-pattern-grammar.md`.
+**SVG diagram parsing is now implemented** as a third producer feeding the
+same `StitchGraph`/`GeometryDocument` boundary, alongside the existing
+structured-JSON path and the written-pattern path:
+
+```text
+SVG crochet chart
+  -> diagram.svg_parser (defusedxml, safety limits, transform normalisation)
+  -> diagram.ir.DiagramDocument                                (versioned, distinct from StitchGraph)
+  -> diagram.extraction / classification / topology              (symbol classification, circular topology inference)
+  -> diagram.compiler.DiagramTopologyCompiler                     (-> existing StitchGraph, directly — see docs/svg-diagram-ingestion.md)
+  -> geometry.layout.build_geometry                               (existing, unmodified)
+  -> api: POST /api/visualizer/diagram/{analyse,compile}
+  -> viewer: SVG diagram mode -> safe 2D review/correction -> live 3D model
+```
+
+Clean vector SVG, primarily circular/radial charts, only — see
+[`docs/svg-diagram-ingestion.md`](docs/svg-diagram-ingestion.md) for the
+exact supported profile and
+[`docs/known-limitations.md`](docs/known-limitations.md) for what's
+deliberately excluded. Raster images, photographs, and OCR remain entirely
+out of scope (see `docs/written-pattern-grammar.md`'s original note, still
+accurate for the raster half).
 
 ```bash
 # Backend (compile API):
@@ -173,7 +191,10 @@ npm run dev      # http://localhost:5173
 ```
 
 Paste a pattern (an example is preloaded) into the left panel and click
-"Interpret and render" — no fixture file to regenerate or copy by hand. The
+"Interpret and render" — no fixture file to regenerate or copy by hand.
+Switch to the "SVG diagram" tab to upload or paste a clean vector SVG
+crochet chart instead, review/correct the extracted symbols in the safe 2D
+preview, and click "Compile to 3D." The
 static `viewer/public/geometry.json` fixture still loads on startup as a
 zero-backend-required demo/fallback (see
 [frontend-to-backend setup](docs/frontend-backend-setup.md)) and remains
@@ -203,7 +224,13 @@ See: [Crochet IR](docs/crochet-ir-spec.md) ·
 [frontend-to-backend setup](docs/frontend-backend-setup.md) ·
 [open-source resource adoption](docs/open-source-resource-adoption.md) ·
 [canonical JSON / RFC 8785 audit](docs/canonical-json-audit.md) ·
-[known limitations](docs/known-limitations.md).
+[known limitations](docs/known-limitations.md) ·
+[**SVG diagram ingestion**](docs/svg-diagram-ingestion.md) ·
+[diagram IR spec](docs/diagram-ir-spec.md) ·
+[diagram symbol ontology](docs/diagram-symbol-ontology.md) ·
+[diagram topology inference](docs/diagram-topology-inference.md) ·
+[diagram corrections](docs/diagram-corrections.md) ·
+[SVG security](docs/svg-security.md).
 
 ## Contributor submission portal (paused, not deleted)
 
@@ -240,7 +267,8 @@ pytest tests/portal                 # portal domain/service/image/API tests (pau
 pytest tests/graph                  # stitch-graph builder + invariant tests
 pytest tests/geometry               # geometry-layout tests
 pytest tests/parsing                # written-pattern parser + semantic-conversion tests
-pytest tests/api                    # compile API tests
+pytest tests/api                    # compile API tests (written-pattern + SVG diagram)
+pytest tests/diagram                # SVG diagram ingestion: security, transforms, extraction, topology, corrections, compiler, fixtures
 
 ruff check .                    # lint
 ruff format --check .           # formatting check
@@ -252,11 +280,11 @@ cd viewer
 npm run typecheck    # tsc --noEmit
 npm run build        # production build (tsc -b && vite build)
 npm test             # vitest run — unit tests + benchmark measurements (build time, raycast, interaction ops)
-npm run e2e          # Playwright: compile workflow, lifecycle/leak stress, visual regression — real browser + backend (starts both servers itself)
+npm run e2e          # Playwright: compile workflow, SVG diagram workflow, lifecycle/leak stress, visual regression — real browser + backend (starts both servers itself)
 ```
 
 ```bash
-python -m crochet_reconstruction.api.schema_export   # regenerate schemas/*.schema.json after changing StitchGraph/GeometryDocument/CompileRequest/CompileResponse/Diagnostic
+python -m crochet_reconstruction.api.schema_export   # regenerate schemas/*.schema.json after changing StitchGraph/GeometryDocument/CompileRequest/CompileResponse/Diagnostic/Diagram*
 ```
 
 ## Architecture summary
@@ -271,13 +299,14 @@ src/crochet_reconstruction/
 ├── graph/                 # Components -> explicit per-stitch StitchGraph (stable IDs, insertion targets, sequence order).
 ├── geometry/              # StitchGraph -> approximate 3D positions/frames (analytical, no simulation).
 ├── parsing/written/       # Written pattern text -> domain.rounds.Component (Lark grammar, deterministic).
-├── api/                   # POST /api/visualizer/compile — stateless FastAPI app, separate from portal/.
+├── diagram/               # SVG chart -> Diagram IR -> StitchGraph (secure parsing, ontology, topology inference, corrections).
+├── api/                   # POST /api/visualizer/{compile,diagram/analyse,diagram/compile} — stateless FastAPI app, separate from portal/.
 ├── physical_validation/   # Phase 1.5: trial matrix, review-pack generation, result ingestion, metrics, reporting.
 ├── portal/                # Contributor submission portal — paused (FastAPI/SQLAlchemy/Pillow, `portal` extra).
 └── cli.py                # Thin I/O wrapper: JSON in, files out.
 
 viewer/                    # Vite + TypeScript + Three.js scientific 3D viewer (separate npm project).
-├── e2e/                   # Playwright: compile-workflow, lifecycle/leak stress, visual regression.
+├── e2e/                   # Playwright: compile-workflow, diagram-workflow, lifecycle/leak stress, visual regression.
 └── tests/                 # Vitest: unit/module tests + build/raycast/interaction benchmarks.
 
 schemas/                   # Committed, versioned JSON Schema artefacts — see docs/schema-artifacts.md.
@@ -316,13 +345,18 @@ that milestone does and does not cover, and
 [`docs/scientific-viewer-spec.md`](docs/scientific-viewer-spec.md) for the
 full design.
 
-**Not yet done:** written-pattern parsing, diagram recognition, any
-category beyond rotationally-symmetric round-based structures,
-constraint-relaxation geometry refinement, realistic-yarn/graph/symbol/
-X-ray viewer modes, measurement/annotation tools, a backend compile API,
-the physical trials for the deterministic engine itself, and anything from
-the original image-analysis direction (paused — see
+**Not yet done:** any category beyond rotationally-symmetric round-based
+structures, constraint-relaxation geometry refinement, free-text
+annotation tools, the physical trials for the deterministic engine itself,
+raster/photograph/OCR diagram ingestion (vector-SVG diagram ingestion *is*
+implemented — see above), and anything from the original image-analysis
+direction (paused — see
 [`docs/previous-contributor-portal-status.md`](docs/previous-contributor-portal-status.md)).
+Written-pattern parsing, a backend compile API, and graph/X-ray/path-
+inspection viewer modes are all implemented (see "Stitch graph, geometry,
+and the scientific 3D viewer" above) — this list is not fully current
+elsewhere in this README either; treat `docs/known-limitations.md` as the
+authoritative, actively maintained scope statement.
 
 See [`docs/product-boundary.md`](docs/product-boundary.md) for review
 status detail and known limitations.

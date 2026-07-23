@@ -28,6 +28,79 @@ later, one input route) first — none were discovered too late.
   to the pattern's first plain stitch (`sc` if none exists) — see
   `docs/written-pattern-grammar.md`'s deterministic-assumptions list.
 
+## SVG diagram ingestion (this slice)
+
+See `docs/svg-diagram-ingestion.md` for the full supported-profile
+statement; this section is the honest "what's deliberately not attempted"
+accounting for that slice.
+
+- **Vector SVG only, and only clean/machine-exported vector SVG.** No
+  raster images, no scans, no photographs, no OCR, no computer vision
+  anywhere in this pipeline — `<image>` elements are rejected outright by
+  the security layer, not merely unsupported.
+- **Circular/radial construction only.** `ConstructionMode.ROW` exists in
+  the schema (forward-compatible slot) but is always rejected with
+  `UNSUPPORTED_CHART_CONSTRUCTION` — no row/flat-panel chart interpretation
+  exists yet.
+- **One primary connected component, by model, not just by convention.**
+  Centre detection has no concept of "multiple charts in one file" — two
+  separate motifs (e.g. two magic rings) trigger `AMBIGUOUS_CENTRE` and
+  the first one found wins; the second motif's stitches get incorrectly
+  projected relative to the first motif's centre rather than being
+  recognised as a separate component. `compiler.py`'s
+  `_find_unreachable`/`DISCONNECTED_COMPONENT` check exists as a defensive
+  backstop (and is unit-tested directly,
+  `tests/diagram/test_compiler.py::test_find_unreachable_detects_orphaned_parent_chain`)
+  but this slice's own proportional-projection topology algorithm always
+  guarantees reachability by construction for a genuinely single-centre
+  chart — it cannot, by itself, detect "this SVG actually contains two
+  unrelated motifs" the way a human looking at the image would.
+- **Bounded symbol vocabulary.** magic ring, chain, slip stitch, single/
+  half-double/double crochet, increase, decrease, join — see
+  `docs/diagram-symbol-ontology.md`. Treble crochet, picot, puff stitch,
+  bobble, cluster, front/back post, and complex lace symbols are reserved
+  vocabulary slots that always produce `UNSUPPORTED_SYMBOL`, never a
+  guessed mapping.
+- **`chain`/`slip_stitch`/`join` never become their own `StitchNode`.**
+  They're converted into the existing `into_ring`/`round_closure`
+  mechanisms. A chart symbol using `chain` or `slip_stitch` as an ordinary
+  mid-round worked stitch (not a foundation or closure) is filtered out by
+  `is_worked_stitch()` and simply doesn't appear in the compiled graph —
+  no diagnostic currently flags this specific case, since it's outside the
+  bounded circular-chart profile this slice targets.
+- **Text-label association (classification priority #7) is not
+  implemented.** A chart relying on a free-standing `<text>` label near a
+  symbol, with no `data-*`/`id`/`class`/`title`/`aria-label` metadata,
+  falls through to the geometry heuristic or ends up unclassified.
+- **Primitive-geometry classification is calibrated to this project's own
+  synthetic fixture convention** (symbols authored on roughly a
+  10-local-unit box), not a general shape recognizer — a chart using
+  differently-proportioned artwork with no metadata will get more
+  `unclassified`/`ambiguous` results than one using this project's
+  convention or explicit metadata. This is documented, bounded behaviour,
+  not a bug to fix by loosening thresholds and guessing harder.
+- **Magic-ring/chain-ring centre detection by shape alone is not
+  attempted.** Distinguishing a centre ring from an ordinary chain loop by
+  geometry would require already knowing the centre — circular reasoning.
+  A chart with no explicit centre metadata gets a geometric-centroid
+  estimate instead (lower confidence, `centre_method: geometric_estimate`),
+  which works for typical charts but is not equivalent to true centre
+  detection.
+- **`SymbolOverride.sequence_index` is accepted and recorded but not fully
+  applied to compiled working order.** Only `round_start` (rotating a
+  round's start point) is honoured by the compiler; an arbitrary
+  mid-round reordering correction beyond "pick the starting stitch" is not
+  yet enacted. See `docs/diagram-corrections.md`.
+- **`NON_ADJACENT_DECREASE_PARENTS` is a warning, not a blocking error** —
+  an explicit connector or correction can legitimately produce a
+  non-contiguous decrease (e.g. an unusual stitch pattern); this slice
+  flags it for review rather than assuming it's always wrong.
+- **Round labels/stitch counts in the SVG are not yet used to validate or
+  seed round numbering** beyond per-symbol `data-round` metadata — a
+  chart's own printed "Round 3 (18 sts)" text label is not parsed.
+- **No garment schematics, no freeform lace, no arbitrary hand-drawn
+  charts** — explicitly excluded by the brief, not attempted.
+
 ## Compile API and viewer integration (this slice)
 
 - **No diagram/image input.** Text only — SVG/raster chart parsing remains
@@ -119,14 +192,13 @@ later, one input route) first — none were discovered too late.
 
 ## Input routes
 
-- **Structured JSON only.** Written-pattern parsing and diagram recognition
-  are unimplemented — explicitly excluded from this milestone per the
-  brief ("Do not begin with broad natural-language parsing or computer
-  vision").
-- **No backend API endpoint.** The viewer loads a static geometry JSON
-  fixture (`viewer/public/geometry.json`, generated via the CLI). A
-  `/api/render/compile` endpoint is second-slice-adjacent work, not
-  required by this milestone's completion criteria.
+Three input routes now exist: structured JSON fixtures (the original
+static `viewer/public/geometry.json`), written-pattern text
+(`POST /api/visualizer/compile`), and SVG diagram charts
+(`POST /api/visualizer/diagram/analyse` + `.../compile`, this slice — see
+`docs/svg-diagram-ingestion.md`). Raster/photograph/PDF/OCR input remains
+entirely unimplemented — see the "SVG diagram ingestion" section above for
+the diagram route's own bounded scope.
 
 ## Viewer
 
@@ -151,14 +223,20 @@ later, one input route) first — none were discovered too late.
 - **Yarn-mode tube meshes can self-intersect** at tight increase/decrease
   points — no collision-avoidance or relaxation pass runs over the
   generated geometry (see "Geometry accuracy" above).
-- **Yarn-mode raycasting is measurably expensive**: now actually measured
-  (`docs/performance-benchmarks.md`, completion-audit addition) at ~56x
-  structural mode's raycast cost on the reference fixture — confirming, not
-  just predicting, the `three-mesh-bvh` re-evaluation in
-  `docs/open-source-resource-adoption.md`. Not fixed this audit (no
-  measured user-facing picking-latency complaint exists yet, only the
-  underlying cost measurement); `three-mesh-bvh` remains the recommended
-  next step if that changes.
+- **Yarn-mode raycasting cost is fixed (SVG diagram ingestion slice)**:
+  previously measured at ~35-45x structural mode's raycast cost on the
+  reference fixture; `App.pickStitch` now raycasts against invisible
+  low-poly hit-proxy spheres (`selection/hit_proxies.ts`) in every view
+  mode instead, measured at ~9-11ms per sweep — faster than even the
+  structural-mode raycast, and no longer dependent on yarn tube triangle
+  count at all. See `docs/open-source-resource-adoption.md`'s "Three.js
+  raycasting" entry for the full before/after numbers. `three-mesh-bvh`
+  remains deferred, now because the measured problem was already solved
+  by a simpler mechanism, not just because it wasn't measured yet. Proxies
+  are sized slightly larger than the visible geometry for a comfortable
+  click target, so in densely packed regions the picked stitch can
+  occasionally be an angularly adjacent one rather than bit-for-bit what a
+  pixel-exact raycast would report — a deliberate UX trade-off, not a bug.
 - **Yarn fuzz was evaluated and explicitly not implemented** — see
   `docs/yarn-material-and-lighting.md`'s "Yarn fuzz" section for the
   five-option comparison and the reasoning (every geometry-based option
@@ -201,15 +279,22 @@ garments/lace/assembly, mobile apps, VR, multiplayer, AI-generated final
 geometry without deterministic structure, and automatic redistribution of
 uploaded patterns.
 
-Additionally excluded from the written-pattern compile slice: crochet
-diagram/chart recognition, raster image parsing, OCR, machine learning of
-any kind, full yarn physics, XPBD relaxation, path tracing, WebGPU-specific
-rendering, a redesign of the existing graph/geometry architecture (the
-existing `StitchGraph`/`GeometryDocument` schemas were reused unmodified —
-only their producer-function signatures were narrowed to drop an
-unnecessary beanie-`Pattern` dependency), user accounts, a pattern
-marketplace, and cloud storage. The future diagram pipeline remains:
-`SVG diagram parsing -> raster preprocessing with OpenCV -> optional learned
-symbol detection -> canonical Component/StitchGraph -> existing geometry
-pipeline` — see `docs/open-source-resource-adoption.md` for the OpenCV/
-Detectron2 evaluation and why both remain deferred.
+Additionally excluded from the written-pattern compile slice: raster image
+parsing, OCR, machine learning of any kind, full yarn physics, XPBD
+relaxation, path tracing, WebGPU-specific rendering, a redesign of the
+existing graph/geometry architecture (the existing `StitchGraph`/
+`GeometryDocument` schemas were reused unmodified — only their
+producer-function signatures were narrowed to drop an unnecessary
+beanie-`Pattern` dependency), user accounts, a pattern marketplace, and
+cloud storage.
+
+**Update (SVG diagram ingestion slice)**: clean vector SVG diagram
+recognition is now implemented (see the "SVG diagram ingestion" section
+above and `docs/svg-diagram-ingestion.md`) — the "future diagram pipeline"
+note below is superseded for the vector-SVG half; the raster half remains
+exactly as deferred as before:
+`raster preprocessing with OpenCV -> optional learned symbol detection
+(Detectron2/MMDetection, only once a licensed annotated dataset exists) ->
+canonical Diagram IR -> existing StitchGraph pipeline` — see
+`docs/open-source-resource-adoption.md` for the OpenCV/Detectron2
+evaluation and why both remain deferred.

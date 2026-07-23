@@ -11,7 +11,8 @@ state-management framework — plain TypeScript with a small pub-sub `Store`
 ```
 viewer/src/
 ├── app/App.ts             orchestrator: owns scene/camera/renderer, wires state -> visuals,
-│                           picking dispatch (structural vs. yarn), measurement click flow
+│                           picking dispatch (hit-proxy raycast, every mode), measurement click flow
+├── app/diagram_controller.ts   SVG-diagram analyse/compile workflow (see docs/svg-diagram-ingestion.md)
 ├── scene/scene.ts          lights, background, grid/axes helpers, 3 lighting presets
 ├── camera/camera.ts        CameraRig: perspective+orthographic, OrbitControls, view presets, focus
 ├── rendering/renderer.ts   WebGLRenderer setup, colour management, context-loss handling
@@ -23,18 +24,23 @@ viewer/src/
 │   └── stitch_paths/       StitchPathStrategy system — see docs/stitch-geometry-strategies.md
 ├── materials/yarn_material.ts   MeshPhysicalMaterial preset, semantic colors, x-ray opacity
 ├── selection/
-│   ├── picking.ts          structural raycast -> instanceId -> stitch_id
+│   ├── picking.ts          instancedMesh raycast -> instanceId -> stitch_id (filters .visible groups explicitly — see hit_proxies.ts)
+│   ├── hit_proxies.ts      invisible per-stitch proxy spheres raycasted against in every view mode
 │   ├── highlight.ts        colour-independent selection marker (wireframe torus)
 │   ├── graph_overlay.ts    one-hop StitchGraph edge overlay for the selected stitch
 │   └── path_inspection.ts  role-coloured semantic path-inspection render (yarn mode)
+├── diagram/svg_overlay.ts  safe 2D diagram preview built from Diagram IR (never raw SVG) — see docs/svg-security.md
 ├── measurement/
 │   ├── types.ts             Measurement tagged union (5 kinds) — see docs/measurement-tools.md
 │   └── measurement.ts       one create*Measurement() function per kind + line-overlay builder
 ├── animation/construction.ts    sequence-driven construction timeline
 ├── clipping/clipping.ts    bounds-relative clipping plane (THREE.Plane + material.clippingPlanes) — see docs/clipping-and-section-views.md
 ├── state/store.ts          plain pub-sub ViewerState (measurements, clipping, path-mode/role-focus, quality, xray, ...)
+├── state/diagram_store.ts  plain pub-sub DiagramState (analyse/compile status, document, corrections, filters)
 ├── types/geometry.ts       mirrors geometry/models.py field-for-field
-└── main.ts                 DOM wiring for the control panel
+├── types/diagram.ts        mirrors diagram/ir.py + diagram/corrections.py field-for-field
+├── api/diagram_client.ts   analyseDiagram()/compileDiagram() fetch wrappers
+└── main.ts                 DOM wiring for the control panel (both written-pattern and SVG-diagram modes)
 ```
 
 `annotations/` remains intentionally empty — free-text annotations (as
@@ -284,3 +290,13 @@ triangles depending on quality. Full numbers, the quality-preset tradeoff
 table, and why this cost was judged acceptable (adjustable via quality
 presets rather than fixed) are in
 `docs/yarn-material-and-lighting.md`, not duplicated here.
+
+**Picking (SVG diagram ingestion slice)**: `App.pickStitch` raycasts
+invisible per-stitch hit-proxy spheres (`selection/hit_proxies.ts`) in
+every view mode, measured at ~9–11 ms per 25-point sweep on the same
+fixture — down from ~700–970 ms when yarn mode raycast the visible tube
+meshes directly, and slightly faster than the structural-mode capsule
+raycast itself (~15–25 ms). See
+`docs/open-source-resource-adoption.md`'s "Three.js raycasting" entry for
+the full before/after and the real `.visible`-doesn't-gate-raycasting bug
+this surfaced.

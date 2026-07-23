@@ -59,6 +59,74 @@ Response, failure (`success: false`): `pattern`/`stitchGraph`/`geometry`/
 `summary` are all `null`; `diagnostics` has at least one `severity: "error"`
 entry. See `docs/diagnostic-codes.md` for the full code catalogue.
 
+### `POST /api/visualizer/diagram/analyse`
+
+Package addition: `diagram_schemas.py`, `diagram_service.py`,
+`routers/diagram.py` — a separate router module from `visualizer.py`
+(same app, same `/api/visualizer` prefix family, different sub-path), kept
+apart so the two input paths' request/response shapes never mix in one
+file. Full detail in `docs/svg-diagram-ingestion.md`.
+
+Request (`DiagramAnalyseRequest`):
+
+```json
+{ "svgSource": "<svg xmlns=\"...\">...</svg>", "options": { "constructionMode": "circular", "strict": false } }
+```
+
+Response (`DiagramAnalyseResponse`) — note `diagram` is the deep
+`DiagramDocument` payload and stays **snake_case** internally (only the
+wrapper's own top-level keys are camelCase — see
+`api/diagram_schemas.py`'s module docstring):
+
+```json
+{
+  "success": true,
+  "diagram": { "schema_version": "1.0.0", "symbols": [ /* snake_case fields */ ], "...": "..." },
+  "diagnostics": [ /* zero or more DiagramDiagnostic objects */ ],
+  "summary": { "symbolCount": 18, "classifiedCount": 17, "unclassifiedCount": 1, "roundCount": 3, "lowConfidenceCount": 2, "readyToCompile": false }
+}
+```
+
+`success: false` happens only when the SVG itself couldn't be parsed
+safely (`diagram: null`) — a successfully parsed-but-imperfect chart
+(unclassified symbols, low confidence) still returns `success: true` with
+`summary.readyToCompile: false`, since analysis itself succeeded even
+though compiling would currently be blocked.
+
+### `POST /api/visualizer/diagram/compile`
+
+Request (`DiagramCompileRequest`):
+
+```json
+{ "diagram": { /* the DiagramDocument returned by analyse, possibly hand-edited */ }, "corrections": { /* DiagramCorrectionSet, see docs/diagram-corrections.md */ }, "options": { "strict": true } }
+```
+
+Response (`DiagramCompileResponse`) — reuses the written-pattern
+`CompileResponse`'s summary shape, plus `sourceKind`/`diagram`:
+
+```json
+{
+  "success": true,
+  "sourceKind": "svg_diagram",
+  "diagram": { /* the corrected, re-inferred DiagramDocument */ },
+  "stitchGraph": { /* graph.models.StitchGraph, unchanged type */ },
+  "geometry": { /* geometry.models.GeometryDocument, unchanged type */ },
+  "diagnostics": [],
+  "summary": { "sectionCount": 3, "stitchCount": 42, "componentCount": 1, "graphFingerprint": "...", "geometryFingerprint": "..." }
+}
+```
+
+Blocked by unresolved errors (an uncorrected unclassified/ambiguous
+symbol, a graph-validation failure, ...): `stitchGraph`/`geometry`/
+`summary` are `null`, `diagnostics` carries the blocking error(s), and
+`diagram` still carries the (corrected, re-inferred) document so the
+frontend can show the user exactly what's still wrong without re-analysing
+from scratch.
+
+Neither diagram endpoint stores the submitted SVG or corrections
+server-side — see `docs/diagram-corrections.md`, "No server-side
+persistence."
+
 ## Error handling philosophy
 
 - **Structural request errors** (malformed JSON, invalid `terminology`,
@@ -85,6 +153,11 @@ entry. See `docs/diagnostic-codes.md` for the full code catalogue.
 A pattern engineered to expand into millions of stitches fails with
 `INPUT_TOO_LARGE` as soon as the running total crosses the limit — it never
 attempts the full expansion first.
+
+The diagram endpoints have their own, separate limit set
+(`diagram.security.SafetyLimits`) sized for SVG byte content rather than
+pattern-text character count — see `docs/svg-security.md` for the full
+table and threat model.
 
 ## Configuration
 

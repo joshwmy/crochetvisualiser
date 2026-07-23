@@ -70,6 +70,33 @@ super-linearly, which is the main thing this measurement was checking for
 (an accidental O(n²) serialization cost would show up here as a rising
 bytes/stitch trend).
 
+## SVG diagram ingestion (backend, ad hoc timing script — see below)
+
+Not yet wired into `tests/test_benchmark.py`'s pytest fixture (a
+follow-up, tracked below); measured via a standalone timing script over
+three synthetic circular charts (2 warm-up iterations discarded, single
+measured run per size — smaller sample than the written-pattern benchmarks
+above, since these numbers exist to confirm "not a bottleneck," not to
+support a tight budget assertion):
+
+| Stage | Small (12 stitches, 1 round) | Medium (90 stitches, 5 rounds) | Large (330 stitches, 10 rounds) |
+|---|---|---|---|
+| Secure parse (`svg_parser.parse_svg`) | 0.3 ms | 1.3 ms | 4.8 ms |
+| Symbol extraction (`extraction.extract_symbols`) | 0.1 ms | 0.8 ms | 2.8 ms |
+| Topology inference (`topology.infer_topology`) | 0.1 ms | 0.8 ms | 2.8 ms |
+| Full analyse (`pipeline.analyse_svg_diagram`, includes all of the above plus fingerprinting) | 0.8 ms | 12.8 ms | 19.2 ms |
+| Full compile (`pipeline.compile_svg_diagram`, includes corrections + a second topology pass + `DiagramTopologyCompiler` + `validate_graph` + `build_geometry`) | 0.7 ms | 5.7 ms | 20.3 ms |
+
+All comfortably sub-frame-budget even at 330 stitches (a large hand-chart
+by this slice's own supported-profile standard — see
+`docs/svg-diagram-ingestion.md`); no stage is a plausible bottleneck at the
+chart sizes this slice targets. Payload size and end-to-end HTTP round-trip
+time (through `TestClient`, matching the written-pattern benchmark's own
+methodology) were not separately measured this slice — recommended
+follow-up alongside wiring these three chart sizes into
+`tests/test_benchmark.py` proper for regression tracking, rather than
+leaving them as a standalone script.
+
 ## Frontend scene construction (`viewer/tests/benchmark.test.ts`)
 
 On the 1640-stitch `adult_beanie_hdc` fixture, one representative run:
@@ -102,17 +129,26 @@ same fixture, structural vs. yarn mode:
 |---|---|
 | Structural (`InstancedMesh`, 3 groups) | 11.3 ms |
 | Yarn (merged component `Mesh`, 3 meshes) | 631.1 ms |
+| **Hit-proxy** (`selection/hit_proxies.ts`, SVG diagram ingestion slice) | **~6–11 ms** |
 
-**Yarn raycasting is ~56x more expensive than structural** on this fixture
-— confirming the hypothesis recorded in
+**Yarn raycasting was ~56x more expensive than structural** on this
+fixture — confirming the hypothesis recorded in
 `docs/open-source-resource-adoption.md`'s `three-mesh-bvh` re-evaluation:
 both modes use exactly 3 raycast-target meshes (same draw-call count), so
 the cost difference is entirely the linear-scan-over-triangles cost of a
 non-BVH-indexed mesh with ~343K-987K triangles vs. structural's ~88.6K.
-This is the concrete number that re-evaluation was missing; the
-recommendation there (add `three-mesh-bvh` if raycast cost is ever
-measured as a problem) is now backed by an actual measurement rather than
-a prediction.
+
+**Fixed in the SVG diagram ingestion slice**: `App.pickStitch` now
+raycasts the invisible per-stitch hit-proxy spheres in every view mode
+instead of branching to the expensive yarn-mesh raycast — measured at
+~6–11 ms per sweep, i.e. **faster than even the structural-mode number**,
+since the proxy geometry (low-poly spheres) is cheaper than the structural
+capsule. `three-mesh-bvh` remains deferred: the brief's preferred first
+approach (simplified structural hit proxies) already solved the measured
+problem. See `docs/open-source-resource-adoption.md`'s "Three.js
+raycasting" entry for the full writeup, including a real
+`Object3D.visible`-doesn't-gate-raycasting bug this work surfaced and
+fixed (`selection/picking.ts`).
 
 ## Other interaction operations (`viewer/tests/benchmark.test.ts`, new this audit)
 
