@@ -16,7 +16,12 @@ export class Picker {
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, camera);
 
-    const meshes = scene.groups.map((g) => g.mesh);
+    // Three.js's Raycaster does NOT skip `.visible = false` objects on its
+    // own — `visible` only gates the renderer, not `intersectObjects` — so
+    // a hidden component (or, for the hit-proxy scene, a component the
+    // user toggled off) must be filtered out here explicitly, or it stays
+    // clickable despite being invisible.
+    const meshes = scene.groups.filter((g) => g.mesh.visible).map((g) => g.mesh);
     const hits = this.raycaster.intersectObjects(meshes, false);
     if (hits.length === 0) return null;
 

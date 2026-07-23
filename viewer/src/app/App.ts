@@ -11,11 +11,11 @@ import {
   buildYarnPathScene,
   defaultQualityFor,
   QUALITY_PRESETS,
-  stitchIdForFace,
   type YarnPathScene,
 } from "../geometry/build_yarn_paths";
 import { applyYarnMaterialState } from "../materials/yarn_material";
 import { Picker } from "../selection/picking";
+import { buildHitProxyScene, disposeHitProxyScene } from "../selection/hit_proxies";
 import { SelectionHighlighter } from "../selection/highlight";
 import { buildGraphOverlay } from "../selection/graph_overlay";
 import { buildPathInspectionMeshes } from "../selection/path_inspection";
@@ -51,6 +51,10 @@ export class App {
   private cameraRig: CameraRig;
   private structural: StructuralScene;
   private yarnScene: YarnPathScene;
+  /** Invisible per-stitch spheres raycasted against for picking in every
+   * view mode — see selection/hit_proxies.ts for why this exists as a
+   * separate mesh set instead of reusing the structural meshes. */
+  private hitProxies: StructuralScene;
   private currentQuality: QualityName;
   private picker = new Picker();
   private highlighter: SelectionHighlighter;
@@ -77,6 +81,7 @@ export class App {
     const built = this.buildSceneObjects(doc, jsonSizeBytes, this.currentQuality);
     this.structural = built.structural;
     this.yarnScene = built.yarnScene;
+    this.hitProxies = built.hitProxies;
     this.stats = built.stats;
     for (const comp of this.yarnScene.components) comp.mesh.visible = false;
     this.cameraRig.fitToBounds(doc.bounds);
@@ -113,6 +118,7 @@ export class App {
 
     const previousStructural = this.structural;
     const previousYarn = this.yarnScene;
+    const previousHitProxies = this.hitProxies;
 
     const quality = this.store ? this.store.get().quality : this.currentQuality;
     const built = this.buildSceneObjects(doc, jsonSizeBytes, quality);
@@ -123,10 +129,12 @@ export class App {
     // leaves the previous valid model fully intact and on screen.
     this.disposeStructural(previousStructural);
     this.disposeYarnScene(previousYarn);
+    disposeHitProxyScene(this.scene, previousHitProxies);
     this.disposeOverlays();
 
     this.structural = built.structural;
     this.yarnScene = built.yarnScene;
+    this.hitProxies = built.hitProxies;
     this.stats = built.stats;
     this.doc = doc;
     this.currentQuality = quality;
@@ -159,10 +167,18 @@ export class App {
     doc: GeometryDocument,
     jsonSizeBytes: number,
     quality: QualityName,
-  ): { structural: StructuralScene; yarnScene: YarnPathScene; stats: PerformanceStats } {
+  ): {
+    structural: StructuralScene;
+    yarnScene: YarnPathScene;
+    hitProxies: StructuralScene;
+    stats: PerformanceStats;
+  } {
     const genStart = performance.now();
     const structural = buildStructuralScene(doc);
     for (const group of structural.groups) this.scene.add(group.mesh);
+
+    const hitProxies = buildHitProxyScene(doc);
+    for (const group of hitProxies.groups) this.scene.add(group.mesh);
 
     const yarnScene = buildYarnPathScene(doc, QUALITY_PRESETS[quality]);
     for (const comp of yarnScene.components) this.scene.add(comp.mesh);
@@ -186,7 +202,7 @@ export class App {
       yarnPathControlPointCount: yarnScene.stats.controlPointCount,
     };
 
-    return { structural, yarnScene, stats };
+    return { structural, yarnScene, hitProxies, stats };
   }
 
   setQuality(quality: QualityName): void {
@@ -457,29 +473,13 @@ export class App {
     return true;
   }
 
+  /** Picks a stitch id via the invisible hit-proxy spheres (selection/
+   * hit_proxies.ts) — the same fast `InstancedMesh` raycast in every view
+   * mode, regardless of which geometry (structural capsules, yarn tubes)
+   * is currently rendered. See hit_proxies.ts's module docstring for the
+   * measured yarn-mode raycast cost this replaces. */
   private pickStitch(event: PointerEvent): string | null {
-    const state = this.store.get();
-    if (state.viewMode === "structural") {
-      return this.picker.pick(event, this.canvas, this.cameraRig.active, this.structural);
-    }
-    return this.pickYarn(event);
-  }
-
-  private pickYarn(event: PointerEvent): string | null {
-    const rect = this.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(ndc, this.cameraRig.active);
-    const meshes = this.yarnScene.components.map((c) => c.mesh);
-    const hits = raycaster.intersectObjects(meshes, false);
-    if (hits.length === 0) return null;
-    const hit = hits[0];
-    const comp = this.yarnScene.components.find((c) => c.mesh === hit.object);
-    if (!comp || hit.faceIndex === undefined || hit.faceIndex === null) return null;
-    return stitchIdForFace(comp.faceRanges, hit.faceIndex);
+    return this.picker.pick(event, this.canvas, this.cameraRig.active, this.hitProxies);
   }
 
   private applyState(state: ViewerState): void {
@@ -509,19 +509,32 @@ export class App {
     const [roundComponent, roundIndexStr] = state.isolatedRoundKey?.split(":") ?? [null, null];
     const roundIndex = roundIndexStr ? Number(roundIndexStr) : null;
 
+    // Hit-proxy instances are hidden (zero-scaled, unpickable) in lockstep
+    // with the structural ones — animation/round-isolation/component-hide
+    // state must affect *what can be picked* the same way in every view
+    // mode, even though only structural mode also visibly hides geometry.
+    for (const group of this.hitProxies.groups) {
+      group.mesh.visible = !state.hiddenComponentIds.has(group.componentId);
+    }
+
     const touchedGroups = new Set(this.structural.groups);
+    const touchedProxyGroups = new Set(this.hitProxies.groups);
     for (const stitch of this.doc.stitches) {
       const location = this.structural.stitchIdToLocation.get(stitch.stitch_id);
-      if (!location) continue;
+      const proxyLocation = this.hitProxies.stitchIdToLocation.get(stitch.stitch_id);
+      if (!location || !proxyLocation) continue;
       const withinAnimation = stitch.sequence_index < state.animationIndex;
       const withinIsolation =
         roundIndex === null ||
         (stitch.component_id === roundComponent && stitch.round_index === roundIndex);
       const hidden = !withinAnimation || !withinIsolation;
       setInstanceHidden(location.group, location.index, hidden);
+      setInstanceHidden(proxyLocation.group, proxyLocation.index, hidden);
       touchedGroups.add(location.group);
+      touchedProxyGroups.add(proxyLocation.group);
     }
     for (const group of touchedGroups) commitMatrixUpdates(group);
+    for (const group of touchedProxyGroups) commitMatrixUpdates(group);
   }
 
   private applyOpacityAndXray(state: ViewerState): void {

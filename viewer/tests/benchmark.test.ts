@@ -5,6 +5,7 @@ import path from "node:path";
 import * as THREE from "three";
 import { buildStructuralScene } from "../src/geometry/build_meshes";
 import { buildYarnPathScene, QUALITY_PRESETS, stitchIdForFace } from "../src/geometry/build_yarn_paths";
+import { buildHitProxyScene } from "../src/selection/hit_proxies";
 import { validateGeometry } from "../src/geometry/load";
 import { SelectionHighlighter } from "../src/selection/highlight";
 import { buildGraphOverlay } from "../src/selection/graph_overlay";
@@ -157,6 +158,67 @@ describe("benchmark: raycasting (adult_beanie_hdc fixture)", () => {
         `not a difference in draw-call/mesh count (both are 3 meshes for this fixture).`,
     );
     expect(elapsed).toBeLessThan(2000);
+  });
+
+  it("hit-proxy mode: raycasts a grid of points against the invisible per-stitch proxy spheres", () => {
+    const hitProxies = buildHitProxyScene(doc);
+    const meshes = hitProxies.groups.map((g) => g.mesh);
+    const start = performance.now();
+    let hits = 0;
+    const iterations = 20;
+    for (let i = 0; i < iterations; i++) hits = raycastAll(meshes);
+    const elapsed = (performance.now() - start) / iterations;
+    console.log(
+      `[benchmark] hit-proxy raycast: ${elapsed.toFixed(3)} ms per ${NDC_GRID.length}-point sweep ` +
+        `(${hits}/${NDC_GRID.length} points hit geometry), averaged over ${iterations} sweeps — ` +
+        `this is the "after" number for selection/hit_proxies.ts: App.pickStitch now always raycasts ` +
+        `these low-poly instanced spheres instead of the yarn mode number above, in every view mode.`,
+    );
+    expect(elapsed).toBeLessThan(500);
+  });
+
+  it("hit-proxy raycast resolves to a stitch near where a structural raycast would (correctness, not just speed)", () => {
+    // Proxies are deliberately sized *larger* than the structural capsule
+    // (a comfortable click target, see hit_proxies.ts), so in densely
+    // packed regions (e.g. crown rounds near the centre) the nearest-hit
+    // proxy can legitimately be an angularly adjacent stitch rather than
+    // bit-for-bit the same instance a tighter structural raycast would
+    // report — this checks "resolves to *a* real, nearby stitch," not
+    // exact-ID equality, which is the property that actually matters for
+    // picking correctness.
+    const hitProxies = buildHitProxyScene(doc);
+    const proxyMeshes = hitProxies.groups.map((g) => g.mesh);
+    const structuralMeshes = structural.groups.map((g) => g.mesh);
+    const positionById = new Map(doc.stitches.map((s) => [s.stitch_id, s.position]));
+    const stitchSpacingCm = 1 / doc.gauge.stitches_per_cm;
+    const raycaster = new THREE.Raycaster();
+    let compared = 0;
+    for (const [x, y] of NDC_GRID) {
+      raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+      const structuralHits = raycaster.intersectObjects(structuralMeshes, false);
+      if (structuralHits.length === 0 || structuralHits[0].instanceId === undefined) continue;
+      const structuralGroup = structural.groups.find((g) => g.mesh === structuralHits[0].object);
+      const expectedStitchId = structuralGroup?.stitchIds[structuralHits[0].instanceId!];
+      if (!expectedStitchId) continue;
+
+      const proxyHits = raycaster.intersectObjects(proxyMeshes, false);
+      if (proxyHits.length === 0 || proxyHits[0].instanceId === undefined) continue;
+      const proxyGroup = hitProxies.groups.find((g) => g.mesh === proxyHits[0].object);
+      const proxyStitchId = proxyGroup?.stitchIds[proxyHits[0].instanceId!];
+      if (!proxyStitchId) continue;
+
+      const expectedPos = positionById.get(expectedStitchId)!;
+      const proxyPos = positionById.get(proxyStitchId)!;
+      const distance = Math.hypot(
+        expectedPos[0] - proxyPos[0],
+        expectedPos[1] - proxyPos[1],
+        expectedPos[2] - proxyPos[2],
+      );
+
+      compared += 1;
+      expect(distance).toBeLessThan(stitchSpacingCm * 3);
+    }
+    expect(compared).toBeGreaterThan(0);
   });
 
   it("a raycast hit resolves back to a valid stitch id in yarn mode (correctness alongside timing)", () => {
