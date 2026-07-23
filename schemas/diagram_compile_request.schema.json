@@ -1,0 +1,968 @@
+{
+  "$defs": {
+    "ClassificationMethod": {
+      "description": "Which extraction stage produced a symbol's classification.\n\nOrdering below (top to bottom) is the deterministic priority order used\nby ``diagram/extraction.py`` \u2014 never let a later (lower-confidence)\nmethod override an earlier one. See ``CONFIDENCE_BY_METHOD``.",
+      "enum": [
+        "data_attribute",
+        "use_reference",
+        "element_id",
+        "css_class",
+        "title",
+        "aria_label",
+        "primitive_geometry",
+        "manual_override",
+        "unclassified"
+      ],
+      "title": "ClassificationMethod",
+      "type": "string"
+    },
+    "ConstructionMode": {
+      "description": "Only ``CIRCULAR`` is implemented this slice (brief: \"first topology\nimplementation should target circular or radial charts\"). ``ROW`` is\nreserved so the schema does not need a breaking change later, the same\npattern ``domain.enums.Construction.JOINED`` already uses \u2014 selecting a\nchart this pipeline detects as row/flat-panel construction produces an\nexplicit ``UNSUPPORTED_CHART_CONSTRUCTION`` diagnostic, never a silent\nbest-effort circular interpretation.",
+      "enum": [
+        "circular",
+        "row"
+      ],
+      "title": "ConstructionMode",
+      "type": "string"
+    },
+    "ConstructionOverrides": {
+      "properties": {
+        "centre": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "clockwise",
+                "counterclockwise"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direction"
+        },
+        "round_tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Tolerance"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Symbol Id"
+        }
+      },
+      "title": "ConstructionOverrides",
+      "type": "object"
+    },
+    "DiagramCompileOptions": {
+      "properties": {
+        "strict": {
+          "default": true,
+          "title": "Strict",
+          "type": "boolean"
+        }
+      },
+      "title": "DiagramCompileOptions",
+      "type": "object"
+    },
+    "DiagramConstruction": {
+      "properties": {
+        "centre": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre"
+        },
+        "centre_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "explicit_metadata",
+                "explicit_symbol",
+                "user_specified",
+                "geometric_estimate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre Method"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "clockwise",
+                "counterclockwise"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direction"
+        },
+        "mode": {
+          "$ref": "#/$defs/ConstructionMode"
+        },
+        "round_tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Tolerance"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Symbol Id"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "DiagramConstruction",
+      "type": "object"
+    },
+    "DiagramCorrectionSet": {
+      "properties": {
+        "construction_overrides": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConstructionOverrides"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relationship_overrides": {
+          "items": {
+            "$ref": "#/$defs/RelationshipOverride"
+          },
+          "title": "Relationship Overrides",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "symbol_overrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SymbolOverride"
+          },
+          "title": "Symbol Overrides",
+          "type": "object"
+        }
+      },
+      "title": "DiagramCorrectionSet",
+      "type": "object"
+    },
+    "DiagramDiagnostic": {
+      "description": "One structured diagram-pipeline diagnostic.\n\nOrdering is always the order diagnostics were produced during a single\ndeterministic pass (parse -> extract -> classify -> topology -> convert)\n\u2014 never re-sorted, so identical input always produces an identically\nordered diagnostics list, matching the written-pattern parser's\nconvention.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DiagramDiagnosticCode"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "element_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Path"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "suggested_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Action"
+        },
+        "svg_element_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Svg Element Id"
+        },
+        "symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol Id"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "DiagramDiagnostic",
+      "type": "object"
+    },
+    "DiagramDiagnosticCode": {
+      "enum": [
+        "INVALID_SVG",
+        "UNSAFE_SVG_CONTENT",
+        "UNSUPPORTED_SVG_FEATURE",
+        "SOURCE_TOO_LARGE",
+        "TOO_MANY_ELEMENTS",
+        "UNSUPPORTED_EXTERNAL_REFERENCE",
+        "TRANSFORM_FAILURE",
+        "UNCLASSIFIED_SYMBOL",
+        "AMBIGUOUS_SYMBOL",
+        "UNSUPPORTED_SYMBOL",
+        "DUPLICATE_SYMBOL_ID",
+        "MISSING_CENTRE",
+        "AMBIGUOUS_CENTRE",
+        "ROUND_CLUSTERING_AMBIGUITY",
+        "MISSING_PARENT",
+        "AMBIGUOUS_PARENT",
+        "INVALID_CONNECTOR",
+        "NON_ADJACENT_DECREASE_PARENTS",
+        "DISCONNECTED_COMPONENT",
+        "UNSUPPORTED_CHART_CONSTRUCTION",
+        "GRAPH_VALIDATION_FAILURE",
+        "MANUAL_CORRECTION_CONFLICT",
+        "INTERNAL_ERROR"
+      ],
+      "title": "DiagramDiagnosticCode",
+      "type": "string"
+    },
+    "DiagramDocument": {
+      "description": "The complete Diagram IR for one analysed SVG chart.",
+      "properties": {
+        "construction": {
+          "$ref": "#/$defs/DiagramConstruction"
+        },
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/DiagramDiagnostic"
+          },
+          "title": "Diagnostics",
+          "type": "array"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "relationships": {
+          "items": {
+            "$ref": "#/$defs/DiagramRelationship"
+          },
+          "title": "Relationships",
+          "type": "array"
+        },
+        "rounds": {
+          "items": {
+            "$ref": "#/$defs/DiagramRound"
+          },
+          "title": "Rounds",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/DiagramSource"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/DiagramSymbol"
+          },
+          "title": "Symbols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "construction",
+        "symbols",
+        "relationships",
+        "rounds"
+      ],
+      "title": "DiagramDocument",
+      "type": "object"
+    },
+    "DiagramRelationship": {
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "inference_method": {
+          "enum": [
+            "explicit_connector",
+            "explicit_metadata",
+            "manual_override",
+            "radial_projection",
+            "nearest_previous_round"
+          ],
+          "title": "Inference Method",
+          "type": "string"
+        },
+        "relationship_id": {
+          "title": "Relationship Id",
+          "type": "string"
+        },
+        "relationship_type": {
+          "enum": [
+            "parent_attachment",
+            "yarn_sequence",
+            "horizontal_neighbor",
+            "explicit_connector",
+            "round_closure",
+            "increase_group",
+            "decrease_group",
+            "centre_attachment"
+          ],
+          "title": "Relationship Type",
+          "type": "string"
+        },
+        "source_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Symbol Ids",
+          "type": "array"
+        },
+        "target_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Symbol Ids",
+          "type": "array"
+        },
+        "user_override": {
+          "default": false,
+          "title": "User Override",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "relationship_id",
+        "source_symbol_ids",
+        "target_symbol_ids",
+        "relationship_type",
+        "inference_method",
+        "confidence",
+        "evidence"
+      ],
+      "title": "DiagramRelationship",
+      "type": "object"
+    },
+    "DiagramRound": {
+      "properties": {
+        "centre_distance_avg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Centre Distance Avg"
+        },
+        "closure": {
+          "title": "Closure",
+          "type": "boolean"
+        },
+        "round_index": {
+          "minimum": 1,
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start Symbol Id"
+        },
+        "symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Symbol Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "round_index",
+        "symbol_ids",
+        "centre_distance_avg",
+        "start_symbol_id",
+        "closure"
+      ],
+      "title": "DiagramRound",
+      "type": "object"
+    },
+    "DiagramSource": {
+      "properties": {
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "height": {
+          "title": "Height",
+          "type": "number"
+        },
+        "kind": {
+          "const": "svg_diagram",
+          "default": "svg_diagram",
+          "title": "Kind",
+          "type": "string"
+        },
+        "view_box": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "View Box",
+          "type": "array"
+        },
+        "width": {
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "width",
+        "height",
+        "view_box"
+      ],
+      "title": "DiagramSource",
+      "type": "object"
+    },
+    "DiagramStitchType": {
+      "description": "Bounded first-slice symbol vocabulary. See module docstring for scope.",
+      "enum": [
+        "magic_ring",
+        "chain",
+        "slip_stitch",
+        "single_crochet",
+        "half_double_crochet",
+        "double_crochet",
+        "increase",
+        "decrease",
+        "join"
+      ],
+      "title": "DiagramStitchType",
+      "type": "string"
+    },
+    "DiagramSymbol": {
+      "description": "One extracted-and-classified chart symbol.\n\nSee ``docs/diagram-ir-spec.md`` for the field-by-field rationale;\n``symbol_id`` is derived deterministically from the source element's\npath in the document (never a random UUID) so re-analysing the same SVG\nreproduces identical IDs \u2014 a precondition for corrections keyed by\n``symbol_id`` to remain valid across re-analysis.",
+      "properties": {
+        "ambiguous": {
+          "default": false,
+          "title": "Ambiguous",
+          "type": "boolean"
+        },
+        "anchor": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Anchor",
+          "type": "array"
+        },
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "candidate_stitch_types": {
+          "items": {
+            "$ref": "#/$defs/DiagramStitchType"
+          },
+          "title": "Candidate Stitch Types",
+          "type": "array"
+        },
+        "classification_method": {
+          "$ref": "#/$defs/ClassificationMethod"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "confidence_band": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "manual"
+          ],
+          "title": "Confidence Band",
+          "type": "string"
+        },
+        "geometry_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Fingerprint"
+        },
+        "orientation_deg": {
+          "title": "Orientation Deg",
+          "type": "number"
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "round_closure": {
+          "default": false,
+          "title": "Round Closure",
+          "type": "boolean"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "round_start": {
+          "default": false,
+          "title": "Round Start",
+          "type": "boolean"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "sequence_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Index"
+        },
+        "source_element_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Element Id"
+        },
+        "source_element_path": {
+          "title": "Source Element Path",
+          "type": "string"
+        },
+        "source_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Source Metadata",
+          "type": "object"
+        },
+        "stitch_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiagramStitchType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "symbol_id": {
+          "title": "Symbol Id",
+          "type": "string"
+        },
+        "unsupported": {
+          "default": false,
+          "title": "Unsupported",
+          "type": "boolean"
+        },
+        "user_override": {
+          "default": false,
+          "title": "User Override",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "symbol_id",
+        "stitch_type",
+        "source_element_id",
+        "source_element_path",
+        "position",
+        "bbox",
+        "anchor",
+        "orientation_deg",
+        "scale",
+        "classification_method",
+        "confidence",
+        "confidence_band"
+      ],
+      "title": "DiagramSymbol",
+      "type": "object"
+    },
+    "RelationshipOverride": {
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/RelationshipOverrideAction"
+        },
+        "child_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Child Symbol Ids",
+          "type": "array"
+        },
+        "parent_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Symbol Ids",
+          "type": "array"
+        },
+        "symbol_id": {
+          "title": "Symbol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol_id",
+        "action"
+      ],
+      "title": "RelationshipOverride",
+      "type": "object"
+    },
+    "RelationshipOverrideAction": {
+      "enum": [
+        "set_parent",
+        "remove_parent",
+        "add_parent",
+        "set_children",
+        "confirm",
+        "restore_automatic"
+      ],
+      "title": "RelationshipOverrideAction",
+      "type": "string"
+    },
+    "SymbolOverride": {
+      "properties": {
+        "ignored": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ignored"
+        },
+        "round_closure": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Closure"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "round_start": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Start"
+        },
+        "sequence_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Index"
+        },
+        "stitch_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiagramStitchType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SymbolOverride",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_compile_request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "corrections": {
+      "$ref": "#/$defs/DiagramCorrectionSet",
+      "default": {
+        "construction_overrides": null,
+        "relationship_overrides": [],
+        "schema_version": "1.0.0",
+        "symbol_overrides": {}
+      }
+    },
+    "diagram": {
+      "$ref": "#/$defs/DiagramDocument"
+    },
+    "options": {
+      "$ref": "#/$defs/DiagramCompileOptions",
+      "default": {
+        "strict": true
+      }
+    }
+  },
+  "required": [
+    "diagram"
+  ],
+  "title": "DiagramCompileRequest",
+  "type": "object",
+  "version": "1.0.0"
+}

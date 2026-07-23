@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+<g id="ring" data-stitch-type="magic_ring" transform="translate(200.0,200.0)"><circle r="8"/></g>
+<g id="g0" data-stitch-type="single_crochet" transform="translate(230.0000,200.0000)"></g>
+<g id="g1" data-stitch-type="single_crochet" transform="translate(209.2705,228.5317)"></g>
+<g id="g2" data-stitch-type="single_crochet" transform="translate(175.7295,217.6336)"></g>
+<g id="g3" data-stitch-type="single_crochet" transform="translate(175.7295,182.3664)"></g>
+<g id="g4" data-stitch-type="single_crochet" transform="translate(209.2705,171.4683)"></g>
+<path id="amb" d="M-4,-4 L4,-1 M-4,2 L4,-4" transform="translate(215.0000,174.0192)"/>
+</svg>

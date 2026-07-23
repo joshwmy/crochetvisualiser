@@ -1,0 +1,1613 @@
+{
+  "$defs": {
+    "ClassificationMethod": {
+      "description": "Which extraction stage produced a symbol's classification.\n\nOrdering below (top to bottom) is the deterministic priority order used\nby ``diagram/extraction.py`` \u2014 never let a later (lower-confidence)\nmethod override an earlier one. See ``CONFIDENCE_BY_METHOD``.",
+      "enum": [
+        "data_attribute",
+        "use_reference",
+        "element_id",
+        "css_class",
+        "title",
+        "aria_label",
+        "primitive_geometry",
+        "manual_override",
+        "unclassified"
+      ],
+      "title": "ClassificationMethod",
+      "type": "string"
+    },
+    "ComponentKind": {
+      "description": "Beanie components (``CROWN``/``BODY``/``BRIM``) plus ``PIECE``.\n\n``PIECE`` is one undifferentiated worked piece with no crown/body/brim\ndistinction, used by the written-pattern parser (``parsing/written/``)\nfor generic round-based patterns (amigurumi, swatches) that aren't\nbeanies. The rotational geometry layout treats ``PIECE`` the same as\n``BODY`` (a flat vertical stack of rounds, no dome curvature) \u2014 a known,\ndocumented approximation for shapes like a sphere, where a real\ncrown-and-decrease-symmetric dome treatment would render more\naccurately. See docs/known-limitations.md.",
+      "enum": [
+        "crown",
+        "body",
+        "brim",
+        "piece"
+      ],
+      "title": "ComponentKind",
+      "type": "string"
+    },
+    "ConstructionMode": {
+      "description": "Only ``CIRCULAR`` is implemented this slice (brief: \"first topology\nimplementation should target circular or radial charts\"). ``ROW`` is\nreserved so the schema does not need a breaking change later, the same\npattern ``domain.enums.Construction.JOINED`` already uses \u2014 selecting a\nchart this pipeline detects as row/flat-panel construction produces an\nexplicit ``UNSUPPORTED_CHART_CONSTRUCTION`` diagnostic, never a silent\nbest-effort circular interpretation.",
+      "enum": [
+        "circular",
+        "row"
+      ],
+      "title": "ConstructionMode",
+      "type": "string"
+    },
+    "DiagramCompileSummary": {
+      "properties": {
+        "componentCount": {
+          "title": "Componentcount",
+          "type": "integer"
+        },
+        "geometryFingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Geometryfingerprint"
+        },
+        "graphFingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Graphfingerprint"
+        },
+        "sectionCount": {
+          "title": "Sectioncount",
+          "type": "integer"
+        },
+        "stitchCount": {
+          "title": "Stitchcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sectionCount",
+        "stitchCount",
+        "componentCount",
+        "graphFingerprint",
+        "geometryFingerprint"
+      ],
+      "title": "DiagramCompileSummary",
+      "type": "object"
+    },
+    "DiagramConstruction": {
+      "properties": {
+        "centre": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre"
+        },
+        "centre_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "explicit_metadata",
+                "explicit_symbol",
+                "user_specified",
+                "geometric_estimate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre Method"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "clockwise",
+                "counterclockwise"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direction"
+        },
+        "mode": {
+          "$ref": "#/$defs/ConstructionMode"
+        },
+        "round_tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Tolerance"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Symbol Id"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "DiagramConstruction",
+      "type": "object"
+    },
+    "DiagramDiagnostic": {
+      "description": "One structured diagram-pipeline diagnostic.\n\nOrdering is always the order diagnostics were produced during a single\ndeterministic pass (parse -> extract -> classify -> topology -> convert)\n\u2014 never re-sorted, so identical input always produces an identically\nordered diagnostics list, matching the written-pattern parser's\nconvention.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DiagramDiagnosticCode"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "element_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Path"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "suggested_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Action"
+        },
+        "svg_element_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Svg Element Id"
+        },
+        "symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol Id"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "DiagramDiagnostic",
+      "type": "object"
+    },
+    "DiagramDiagnosticCode": {
+      "enum": [
+        "INVALID_SVG",
+        "UNSAFE_SVG_CONTENT",
+        "UNSUPPORTED_SVG_FEATURE",
+        "SOURCE_TOO_LARGE",
+        "TOO_MANY_ELEMENTS",
+        "UNSUPPORTED_EXTERNAL_REFERENCE",
+        "TRANSFORM_FAILURE",
+        "UNCLASSIFIED_SYMBOL",
+        "AMBIGUOUS_SYMBOL",
+        "UNSUPPORTED_SYMBOL",
+        "DUPLICATE_SYMBOL_ID",
+        "MISSING_CENTRE",
+        "AMBIGUOUS_CENTRE",
+        "ROUND_CLUSTERING_AMBIGUITY",
+        "MISSING_PARENT",
+        "AMBIGUOUS_PARENT",
+        "INVALID_CONNECTOR",
+        "NON_ADJACENT_DECREASE_PARENTS",
+        "DISCONNECTED_COMPONENT",
+        "UNSUPPORTED_CHART_CONSTRUCTION",
+        "GRAPH_VALIDATION_FAILURE",
+        "MANUAL_CORRECTION_CONFLICT",
+        "INTERNAL_ERROR"
+      ],
+      "title": "DiagramDiagnosticCode",
+      "type": "string"
+    },
+    "DiagramDocument": {
+      "description": "The complete Diagram IR for one analysed SVG chart.",
+      "properties": {
+        "construction": {
+          "$ref": "#/$defs/DiagramConstruction"
+        },
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/DiagramDiagnostic"
+          },
+          "title": "Diagnostics",
+          "type": "array"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "relationships": {
+          "items": {
+            "$ref": "#/$defs/DiagramRelationship"
+          },
+          "title": "Relationships",
+          "type": "array"
+        },
+        "rounds": {
+          "items": {
+            "$ref": "#/$defs/DiagramRound"
+          },
+          "title": "Rounds",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/DiagramSource"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/$defs/DiagramSymbol"
+          },
+          "title": "Symbols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "construction",
+        "symbols",
+        "relationships",
+        "rounds"
+      ],
+      "title": "DiagramDocument",
+      "type": "object"
+    },
+    "DiagramRelationship": {
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "inference_method": {
+          "enum": [
+            "explicit_connector",
+            "explicit_metadata",
+            "manual_override",
+            "radial_projection",
+            "nearest_previous_round"
+          ],
+          "title": "Inference Method",
+          "type": "string"
+        },
+        "relationship_id": {
+          "title": "Relationship Id",
+          "type": "string"
+        },
+        "relationship_type": {
+          "enum": [
+            "parent_attachment",
+            "yarn_sequence",
+            "horizontal_neighbor",
+            "explicit_connector",
+            "round_closure",
+            "increase_group",
+            "decrease_group",
+            "centre_attachment"
+          ],
+          "title": "Relationship Type",
+          "type": "string"
+        },
+        "source_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Symbol Ids",
+          "type": "array"
+        },
+        "target_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Symbol Ids",
+          "type": "array"
+        },
+        "user_override": {
+          "default": false,
+          "title": "User Override",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "relationship_id",
+        "source_symbol_ids",
+        "target_symbol_ids",
+        "relationship_type",
+        "inference_method",
+        "confidence",
+        "evidence"
+      ],
+      "title": "DiagramRelationship",
+      "type": "object"
+    },
+    "DiagramRound": {
+      "properties": {
+        "centre_distance_avg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Centre Distance Avg"
+        },
+        "closure": {
+          "title": "Closure",
+          "type": "boolean"
+        },
+        "round_index": {
+          "minimum": 1,
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start Symbol Id"
+        },
+        "symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Symbol Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "round_index",
+        "symbol_ids",
+        "centre_distance_avg",
+        "start_symbol_id",
+        "closure"
+      ],
+      "title": "DiagramRound",
+      "type": "object"
+    },
+    "DiagramSource": {
+      "properties": {
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "height": {
+          "title": "Height",
+          "type": "number"
+        },
+        "kind": {
+          "const": "svg_diagram",
+          "default": "svg_diagram",
+          "title": "Kind",
+          "type": "string"
+        },
+        "view_box": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "View Box",
+          "type": "array"
+        },
+        "width": {
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "width",
+        "height",
+        "view_box"
+      ],
+      "title": "DiagramSource",
+      "type": "object"
+    },
+    "DiagramStitchType": {
+      "description": "Bounded first-slice symbol vocabulary. See module docstring for scope.",
+      "enum": [
+        "magic_ring",
+        "chain",
+        "slip_stitch",
+        "single_crochet",
+        "half_double_crochet",
+        "double_crochet",
+        "increase",
+        "decrease",
+        "join"
+      ],
+      "title": "DiagramStitchType",
+      "type": "string"
+    },
+    "DiagramSymbol": {
+      "description": "One extracted-and-classified chart symbol.\n\nSee ``docs/diagram-ir-spec.md`` for the field-by-field rationale;\n``symbol_id`` is derived deterministically from the source element's\npath in the document (never a random UUID) so re-analysing the same SVG\nreproduces identical IDs \u2014 a precondition for corrections keyed by\n``symbol_id`` to remain valid across re-analysis.",
+      "properties": {
+        "ambiguous": {
+          "default": false,
+          "title": "Ambiguous",
+          "type": "boolean"
+        },
+        "anchor": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Anchor",
+          "type": "array"
+        },
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "candidate_stitch_types": {
+          "items": {
+            "$ref": "#/$defs/DiagramStitchType"
+          },
+          "title": "Candidate Stitch Types",
+          "type": "array"
+        },
+        "classification_method": {
+          "$ref": "#/$defs/ClassificationMethod"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "confidence_band": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "manual"
+          ],
+          "title": "Confidence Band",
+          "type": "string"
+        },
+        "geometry_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Fingerprint"
+        },
+        "orientation_deg": {
+          "title": "Orientation Deg",
+          "type": "number"
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "round_closure": {
+          "default": false,
+          "title": "Round Closure",
+          "type": "boolean"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "round_start": {
+          "default": false,
+          "title": "Round Start",
+          "type": "boolean"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "sequence_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Index"
+        },
+        "source_element_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Element Id"
+        },
+        "source_element_path": {
+          "title": "Source Element Path",
+          "type": "string"
+        },
+        "source_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Source Metadata",
+          "type": "object"
+        },
+        "stitch_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiagramStitchType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "symbol_id": {
+          "title": "Symbol Id",
+          "type": "string"
+        },
+        "unsupported": {
+          "default": false,
+          "title": "Unsupported",
+          "type": "boolean"
+        },
+        "user_override": {
+          "default": false,
+          "title": "User Override",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "symbol_id",
+        "stitch_type",
+        "source_element_id",
+        "source_element_path",
+        "position",
+        "bbox",
+        "anchor",
+        "orientation_deg",
+        "scale",
+        "classification_method",
+        "confidence",
+        "confidence_band"
+      ],
+      "title": "DiagramSymbol",
+      "type": "object"
+    },
+    "Edge": {
+      "properties": {
+        "edge_id": {
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "edge_type": {
+          "enum": [
+            "yarn_sequence",
+            "insertion",
+            "horizontal_neighbor",
+            "round_closure"
+          ],
+          "title": "Edge Type",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "edge_type",
+        "source_id",
+        "target_id"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "GaugeAssumptions": {
+      "properties": {
+        "rounds_per_cm": {
+          "title": "Rounds Per Cm",
+          "type": "number"
+        },
+        "stitches_per_cm": {
+          "title": "Stitches Per Cm",
+          "type": "number"
+        },
+        "yarn_diameter_cm": {
+          "title": "Yarn Diameter Cm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stitches_per_cm",
+        "rounds_per_cm",
+        "yarn_diameter_cm"
+      ],
+      "title": "GaugeAssumptions",
+      "type": "object"
+    },
+    "GeometryBounds": {
+      "properties": {
+        "max": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Max",
+          "type": "array"
+        },
+        "min": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Min",
+          "type": "array"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "GeometryBounds",
+      "type": "object"
+    },
+    "GeometryDocument": {
+      "description": "The complete renderer-ready geometry payload for one compiled pattern.",
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/GeometryBounds"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/GeometryEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "gauge": {
+          "$ref": "#/$defs/GaugeAssumptions"
+        },
+        "geometry_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry Fingerprint"
+        },
+        "graph_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Graph Fingerprint"
+        },
+        "measurements": {
+          "$ref": "#/$defs/GeometryMeasurements"
+        },
+        "pattern_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pattern Fingerprint"
+        },
+        "schema_version": {
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stitches": {
+          "items": {
+            "$ref": "#/$defs/StitchGeometry"
+          },
+          "title": "Stitches",
+          "type": "array"
+        },
+        "units": {
+          "default": "cm",
+          "title": "Units",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "yarn_segments": {
+          "items": {
+            "$ref": "#/$defs/YarnSegmentGeometry"
+          },
+          "title": "Yarn Segments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pattern_fingerprint",
+        "graph_fingerprint",
+        "gauge",
+        "stitches",
+        "yarn_segments",
+        "edges",
+        "bounds",
+        "measurements"
+      ],
+      "title": "GeometryDocument",
+      "type": "object"
+    },
+    "GeometryEdge": {
+      "description": "A graph edge carried through for graph-mode rendering.",
+      "properties": {
+        "edge_id": {
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "edge_type": {
+          "title": "Edge Type",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "edge_id",
+        "edge_type",
+        "source_id",
+        "target_id"
+      ],
+      "title": "GeometryEdge",
+      "type": "object"
+    },
+    "GeometryMeasurements": {
+      "description": "Dimensions derived from the placed geometry \u2014 always approximate.\n\nThese are estimates from analytical stitch placement, not measurements\nof a physical object; the viewer must label them as estimated wherever\ndisplayed (see docs/geometry-transfer-spec.md, \"Estimated, not measured\").",
+      "properties": {
+        "max_circumference_cm": {
+          "title": "Max Circumference Cm",
+          "type": "number"
+        },
+        "max_radius_cm": {
+          "title": "Max Radius Cm",
+          "type": "number"
+        },
+        "overall_height_cm": {
+          "title": "Overall Height Cm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "overall_height_cm",
+        "max_radius_cm",
+        "max_circumference_cm"
+      ],
+      "title": "GeometryMeasurements",
+      "type": "object"
+    },
+    "LoopPlacement": {
+      "description": "Which loop(s) a stitch is worked into.",
+      "enum": [
+        "both",
+        "front_loop_only",
+        "back_loop_only"
+      ],
+      "title": "LoopPlacement",
+      "type": "string"
+    },
+    "StitchFamily": {
+      "description": "Supported body stitches.\n\n``SC``/``HDC`` are the Phase 1 beanie engine's vocabulary (see\n``engine/crown.py``/``engine/body.py``). ``DC`` was added for the\nwritten-pattern parser (``parsing/written/``), which needs it for its\ndocumented abbreviation list; the beanie engine still never emits it.",
+      "enum": [
+        "sc",
+        "hdc",
+        "dc"
+      ],
+      "title": "StitchFamily",
+      "type": "string"
+    },
+    "StitchGeometry": {
+      "description": "Position, orientation, and metadata for one stitch, ready to render.",
+      "properties": {
+        "binormal": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Binormal",
+          "type": "array"
+        },
+        "colour_id": {
+          "title": "Colour Id",
+          "type": "string"
+        },
+        "component_id": {
+          "description": "Currently the component kind, e.g. 'crown'.",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "is_decrease": {
+          "title": "Is Decrease",
+          "type": "boolean"
+        },
+        "is_increase": {
+          "title": "Is Increase",
+          "type": "boolean"
+        },
+        "loop_placement": {
+          "$ref": "#/$defs/LoopPlacement"
+        },
+        "normal": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normal",
+          "type": "array"
+        },
+        "orientation": {
+          "description": "Unit quaternion (x, y, z, w).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Orientation",
+          "type": "array"
+        },
+        "parent_stitch_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Stitch Ids",
+          "type": "array"
+        },
+        "position": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "round_index": {
+          "title": "Round Index",
+          "type": "integer"
+        },
+        "scale": {
+          "default": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "sequence_index": {
+          "title": "Sequence Index",
+          "type": "integer"
+        },
+        "source_reference": {
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "stitch_id": {
+          "title": "Stitch Id",
+          "type": "string"
+        },
+        "stitch_type": {
+          "$ref": "#/$defs/StitchFamily"
+        },
+        "tangent": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Tangent",
+          "type": "array"
+        },
+        "yarn_id": {
+          "title": "Yarn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stitch_id",
+        "component_id",
+        "stitch_type",
+        "round_index",
+        "sequence_index",
+        "position",
+        "orientation",
+        "tangent",
+        "normal",
+        "binormal",
+        "loop_placement",
+        "colour_id",
+        "yarn_id",
+        "parent_stitch_ids",
+        "is_increase",
+        "is_decrease",
+        "source_reference"
+      ],
+      "title": "StitchGeometry",
+      "type": "object"
+    },
+    "StitchGraph": {
+      "description": "The complete deterministic stitch graph for one compiled pattern.",
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/Edge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/StitchNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "pattern_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pattern Fingerprint"
+        },
+        "schema_version": {
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "yarn_segments": {
+          "items": {
+            "$ref": "#/$defs/YarnSegment"
+          },
+          "title": "Yarn Segments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pattern_fingerprint",
+        "nodes",
+        "edges",
+        "yarn_segments"
+      ],
+      "title": "StitchGraph",
+      "type": "object"
+    },
+    "StitchNode": {
+      "description": "One individually identified worked stitch.",
+      "properties": {
+        "colour_id": {
+          "default": "main",
+          "title": "Colour Id",
+          "type": "string"
+        },
+        "component_kind": {
+          "$ref": "#/$defs/ComponentKind"
+        },
+        "decrease_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decrease Group Id"
+        },
+        "diagram_symbol_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diagram Symbol Reference"
+        },
+        "increase_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Increase Group Id"
+        },
+        "into_ring": {
+          "default": false,
+          "description": "True for round-1 stitches worked into a magic ring.",
+          "title": "Into Ring",
+          "type": "boolean"
+        },
+        "is_decrease": {
+          "default": false,
+          "title": "Is Decrease",
+          "type": "boolean"
+        },
+        "is_increase": {
+          "default": false,
+          "title": "Is Increase",
+          "type": "boolean"
+        },
+        "loop_placement": {
+          "$ref": "#/$defs/LoopPlacement"
+        },
+        "parent_stitch_ids": {
+          "description": "Insertion targets: previous-round stitch IDs this stitch is worked into. Empty only for a magic-ring starting stitch, whose target is the ring itself, not a prior stitch \u2014 see `into_ring`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Stitch Ids",
+          "type": "array"
+        },
+        "position_in_round": {
+          "description": "0-indexed position within the round.",
+          "minimum": 0,
+          "title": "Position In Round",
+          "type": "integer"
+        },
+        "repeat_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID of the RepeatOp iteration this stitch belongs to, if any.",
+          "title": "Repeat Group Id"
+        },
+        "round_number": {
+          "minimum": 1,
+          "title": "Round Number",
+          "type": "integer"
+        },
+        "sequence_index": {
+          "description": "0-indexed global working order.",
+          "minimum": 0,
+          "title": "Sequence Index",
+          "type": "integer"
+        },
+        "source_reference": {
+          "description": "e.g. \"crown round 3 operation 2 (repeat 4/8)\".",
+          "title": "Source Reference",
+          "type": "string"
+        },
+        "stitch_height_category": {
+          "enum": [
+            "short",
+            "medium",
+            "tall"
+          ],
+          "title": "Stitch Height Category",
+          "type": "string"
+        },
+        "stitch_id": {
+          "description": "Stable ID, e.g. \"body-r04-s018\".",
+          "title": "Stitch Id",
+          "type": "string"
+        },
+        "stitch_type": {
+          "$ref": "#/$defs/StitchFamily"
+        },
+        "target_rule": {
+          "default": "deterministic_left_to_right",
+          "enum": [
+            "explicit",
+            "deterministic_left_to_right"
+          ],
+          "title": "Target Rule",
+          "type": "string"
+        },
+        "yarn_id": {
+          "default": "main",
+          "description": "Phase 1 supports solid-colour single yarn.",
+          "title": "Yarn Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stitch_id",
+        "component_kind",
+        "round_number",
+        "position_in_round",
+        "sequence_index",
+        "stitch_type",
+        "stitch_height_category",
+        "loop_placement",
+        "source_reference"
+      ],
+      "title": "StitchNode",
+      "type": "object"
+    },
+    "YarnSegment": {
+      "description": "A simplified structural piece of yarn path owned by one stitch.\n\nThe first slice models only a single ``connector`` segment per\nyarn-sequence edge (previous stitch -> this stitch). Richer semantic\nsegmentation (entry/lower-loop/post/upper-loop/exit) is deferred to a\nlater slice, per the data model note in the geometry/rendering spec \u2014\nthis type is intentionally narrow, not final.",
+      "properties": {
+        "from_stitch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Stitch Id"
+        },
+        "owning_stitch_id": {
+          "title": "Owning Stitch Id",
+          "type": "string"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "segment_type": {
+          "const": "connector",
+          "default": "connector",
+          "title": "Segment Type",
+          "type": "string"
+        },
+        "to_stitch_id": {
+          "title": "To Stitch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "owning_stitch_id",
+        "to_stitch_id"
+      ],
+      "title": "YarnSegment",
+      "type": "object"
+    },
+    "YarnSegmentGeometry": {
+      "description": "Simplified curve for one yarn segment: a straight line between two stitches.\n\nFirst-slice simplification: two control points (start, end), not a full\nCatmull-Rom/Bezier centreline. See package docstring for what a later\nprocedural-yarn slice would add here without changing the schema shape\n(more control points, same record type).",
+      "properties": {
+        "control_points": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Control Points",
+          "type": "array"
+        },
+        "from_stitch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Stitch Id"
+        },
+        "owning_stitch_id": {
+          "title": "Owning Stitch Id",
+          "type": "string"
+        },
+        "radius_cm": {
+          "exclusiveMinimum": 0,
+          "title": "Radius Cm",
+          "type": "number"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "segment_type": {
+          "default": "connector",
+          "title": "Segment Type",
+          "type": "string"
+        },
+        "to_stitch_id": {
+          "title": "To Stitch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "owning_stitch_id",
+        "from_stitch_id",
+        "to_stitch_id",
+        "control_points",
+        "radius_cm"
+      ],
+      "title": "YarnSegmentGeometry",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_compile_response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "diagnostics": {
+      "items": {
+        "$ref": "#/$defs/DiagramDiagnostic"
+      },
+      "title": "Diagnostics",
+      "type": "array"
+    },
+    "diagram": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiagramDocument"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "geometry": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GeometryDocument"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceKind": {
+      "const": "svg_diagram",
+      "default": "svg_diagram",
+      "title": "Sourcekind",
+      "type": "string"
+    },
+    "stitchGraph": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StitchGraph"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "success": {
+      "title": "Success",
+      "type": "boolean"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiagramCompileSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "success",
+    "diagram",
+    "stitchGraph",
+    "geometry",
+    "diagnostics",
+    "summary"
+  ],
+  "title": "DiagramCompileResponse",
+  "type": "object",
+  "version": "1.0.0"
+}

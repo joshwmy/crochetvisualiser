@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from crochet_reconstruction.api.config import ApiSettings, load_settings
-from crochet_reconstruction.api.routers import visualizer
+from crochet_reconstruction.api.routers import diagram, visualizer
 
 
 def create_app(settings: ApiSettings | None = None) -> FastAPI:
@@ -31,6 +31,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     )
 
     app.include_router(visualizer.router)
+    app.include_router(diagram.router)
     # Without this override, the route's `Depends(get_settings)` re-derives
     # settings from the environment on every request, ignoring whatever
     # `settings` was explicitly passed to this factory — the same class of

@@ -1,0 +1,76 @@
+{
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_relationship.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "evidence": {
+      "title": "Evidence",
+      "type": "string"
+    },
+    "inference_method": {
+      "enum": [
+        "explicit_connector",
+        "explicit_metadata",
+        "manual_override",
+        "radial_projection",
+        "nearest_previous_round"
+      ],
+      "title": "Inference Method",
+      "type": "string"
+    },
+    "relationship_id": {
+      "title": "Relationship Id",
+      "type": "string"
+    },
+    "relationship_type": {
+      "enum": [
+        "parent_attachment",
+        "yarn_sequence",
+        "horizontal_neighbor",
+        "explicit_connector",
+        "round_closure",
+        "increase_group",
+        "decrease_group",
+        "centre_attachment"
+      ],
+      "title": "Relationship Type",
+      "type": "string"
+    },
+    "source_symbol_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Symbol Ids",
+      "type": "array"
+    },
+    "target_symbol_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Symbol Ids",
+      "type": "array"
+    },
+    "user_override": {
+      "default": false,
+      "title": "User Override",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "relationship_id",
+    "source_symbol_ids",
+    "target_symbol_ids",
+    "relationship_type",
+    "inference_method",
+    "confidence",
+    "evidence"
+  ],
+  "title": "DiagramRelationship",
+  "type": "object",
+  "version": "1.0.0"
+}

@@ -30,7 +30,23 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from crochet_reconstruction.api.diagram_schemas import (
+    DiagramAnalyseRequest,
+    DiagramAnalyseResponse,
+    DiagramCompileRequest,
+    DiagramCompileResponse,
+)
 from crochet_reconstruction.api.schemas import CompileRequest, CompileResponse
+from crochet_reconstruction.diagram.corrections import (
+    CORRECTIONS_SCHEMA_VERSION,
+    DiagramCorrectionSet,
+)
+from crochet_reconstruction.diagram.ir import (
+    DIAGRAM_SCHEMA_VERSION,
+    DiagramDocument,
+    DiagramRelationship,
+    DiagramSymbol,
+)
 from crochet_reconstruction.geometry.models import GEOMETRY_SCHEMA_VERSION, GeometryDocument
 from crochet_reconstruction.graph.models import GRAPH_SCHEMA_VERSION, StitchGraph
 from crochet_reconstruction.parsing.written.diagnostics import Diagnostic
@@ -78,6 +94,42 @@ def generate_schema_files() -> dict[str, dict[str, Any]]:
         ),
         "diagnostic.schema.json": _schema_for(
             Diagnostic, filename="diagnostic.schema.json", version=API_CONTRACT_VERSION
+        ),
+        "diagram_ir.schema.json": _schema_for(
+            DiagramDocument, filename="diagram_ir.schema.json", version=DIAGRAM_SCHEMA_VERSION
+        ),
+        "diagram_symbol.schema.json": _schema_for(
+            DiagramSymbol, filename="diagram_symbol.schema.json", version=DIAGRAM_SCHEMA_VERSION
+        ),
+        "diagram_relationship.schema.json": _schema_for(
+            DiagramRelationship,
+            filename="diagram_relationship.schema.json",
+            version=DIAGRAM_SCHEMA_VERSION,
+        ),
+        "diagram_correction_set.schema.json": _schema_for(
+            DiagramCorrectionSet,
+            filename="diagram_correction_set.schema.json",
+            version=CORRECTIONS_SCHEMA_VERSION,
+        ),
+        "diagram_analyse_request.schema.json": _schema_for(
+            DiagramAnalyseRequest,
+            filename="diagram_analyse_request.schema.json",
+            version=API_CONTRACT_VERSION,
+        ),
+        "diagram_analyse_response.schema.json": _schema_for(
+            DiagramAnalyseResponse,
+            filename="diagram_analyse_response.schema.json",
+            version=API_CONTRACT_VERSION,
+        ),
+        "diagram_compile_request.schema.json": _schema_for(
+            DiagramCompileRequest,
+            filename="diagram_compile_request.schema.json",
+            version=API_CONTRACT_VERSION,
+        ),
+        "diagram_compile_response.schema.json": _schema_for(
+            DiagramCompileResponse,
+            filename="diagram_compile_response.schema.json",
+            version=API_CONTRACT_VERSION,
         ),
     }
 
