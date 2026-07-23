@@ -35,21 +35,26 @@ later, one input route) first — none were discovered too late.
 - **No persistence.** The API never writes submitted patterns to disk and
   has no database; closing the tab loses the current pattern text (the
   textarea itself has no autosave).
-- **Single clipping plane, no annotation tools.** Point-to-point measurement
-  is now implemented (`docs/measurement-tools.md`) — the "no measurement"
-  half of this limitation is resolved; free-text annotations remain
-  unbuilt (`annotations/` is still an empty placeholder directory).
+- **Single clipping plane (numeric entry + reset added), no annotation
+  tools.** Five measurement kinds are now implemented
+  (`docs/measurement-tools.md`) — the "no measurement" half of this
+  limitation is fully resolved; free-text annotations remain unbuilt
+  (`annotations/` is still an empty placeholder directory).
 - **`options.strict` has no effect yet** — accepted by the API and typed in
   the schema, reserved for a future stricter-diagnostics mode, not silently
   dropped but also not yet implemented.
-- **E2E coverage is two workflow tests**, not a full interaction matrix —
-  `viewer/e2e/compile-workflow.spec.ts` covers the original 11-step compile
-  scenario plus a second 12-step scenario (yarn mode, X-ray, clipping,
-  measurement, quality change, recompile-disposal — see
-  `docs/scientific-viewer-spec.md`'s interaction pipeline diagram); some
-  camera-preset and animation-timeline interactions during a live compile
-  session are still covered only by Vitest unit tests and manual
-  verification, not by Playwright.
+- **E2E coverage is 13 tests across three files**, not a full interaction
+  matrix — `viewer/e2e/compile-workflow.spec.ts` (2 tests: the original
+  compile scenario, plus an extended scenario covering yarn mode, path
+  inspection, X-ray, clipping, all five measurement kinds, quality change,
+  and recompile-disposal), `viewer/e2e/lifecycle-stress.spec.ts` (2 tests:
+  repeated-recompile resource-leak checks), and
+  `viewer/e2e/visual-regression.spec.ts` (9 deterministic screenshots —
+  see `docs/performance-benchmarks.md` and this file's "Viewer" section
+  below for its own documented scope reduction). Some camera-preset and
+  animation-timeline interactions during a live compile session are still
+  covered only by Vitest unit tests and manual verification, not by
+  Playwright.
 
 ## Geometry accuracy
 
@@ -84,10 +89,15 @@ later, one input route) first — none were discovered too late.
 - **Yarn diameter is a visual default** (half a stitch width from gauge),
   not a measured or user-entered yarn property.
 - **Loop placement (front/back loop only) is an approximate lateral offset**
-  in yarn mode, not an anatomically modelled loop — see
-  `docs/stitch-geometry-strategies.md`'s sc/hdc/dc section. Each such stitch
-  carries a warning to this effect, surfaced in `#yarn-warnings`, rather
-  than silently rendering as if it were exact.
+  in yarn mode, not an anatomically modelled loop — no strategy in this
+  codebase has ever modelled two anatomically distinct loops, so every
+  non-`both` request is a fallback by construction. This is now tracked
+  as structured data, not just a warning string:
+  `StitchPathResult.loopAttachment` (`{ requested, resolved, exact }`,
+  completion-audit addition) records `exact: false` for every such case,
+  surfaced in the inspector's "Resolved attachment"/"Exact attachment"
+  rows in addition to the existing `#yarn-warnings` free-text warning — see
+  `docs/stitch-geometry-strategies.md`.
 - All dimensional outputs are **estimates**, and are labelled as such in the
   viewer — never presented as measurements of a physical object. This now
   explicitly includes the measurement tool's own readings (labelled
@@ -122,14 +132,18 @@ later, one input route) first — none were discovered too late.
 
 - **Visualisation modes**: structural, crochet-specific yarn (procedural
   per-stitch geometry, not the earlier straight-tube placeholder), X-ray,
-  and a one-hop graph overlay are all implemented. A full symbol-chart mode
+  a one-hop graph overlay, and a semantic path-inspection mode (role-
+  coloured yarn segments, focus-by-role — `selection/path_inspection.ts`,
+  completion-audit addition) are all implemented. A full symbol-chart mode
   remains unimplemented — out of scope for this slice (chart rendering is a
   distinct pipeline stage, see `docs/open-source-resource-adoption.md`'s
   "Crochet Charts" entry).
-- **Measurement tools are implemented** (point-to-point / stitch-to-stitch
-  distance; see `docs/measurement-tools.md`), including disposal on
-  recompile. **Free-text annotations remain unbuilt** —
-  `annotations/` is still an empty placeholder directory.
+- **Measurement tools are implemented**: arbitrary point-to-point, stitch-
+  to-stitch, object width, object height, and selected-round circumference
+  (see `docs/measurement-tools.md`), including disposal on recompile and
+  across a repeated-recompile stress test
+  (`viewer/e2e/lifecycle-stress.spec.ts`). **Free-text annotations remain
+  unbuilt** — `annotations/` is still an empty placeholder directory.
 - **No level-of-detail system** — one fixed geometry resolution per quality
   preset, regardless of camera distance or selection state. Quality presets
   (`docs/yarn-material-and-lighting.md`) are a coarse, user-chosen global
@@ -137,17 +151,27 @@ later, one input route) first — none were discovered too late.
 - **Yarn-mode tube meshes can self-intersect** at tight increase/decrease
   points — no collision-avoidance or relaxation pass runs over the
   generated geometry (see "Geometry accuracy" above).
-- **No raycast-time benchmark for yarn mode** — only build time and
-  triangle count are measured (`docs/yarn-material-and-lighting.md`); if
-  picking latency is ever reported as a problem, `three-mesh-bvh` is the
-  natural next step (see `docs/open-source-resource-adoption.md`'s
-  re-evaluation).
-- **Single clipping plane**, not multiple.
-- **Production bundle is now one ~562 KB chunk / 144 KB gzipped**
-  (`npm run build`, re-measured this slice; was ~534 KB/136 KB before the
-  new materials/geometry/measurement/selection code). Still one chunk, not
-  code-split; the ~28 KB/8 KB gzipped growth is this slice's new code, not
-  a new dependency (no runtime dependency was added — see
+- **Yarn-mode raycasting is measurably expensive**: now actually measured
+  (`docs/performance-benchmarks.md`, completion-audit addition) at ~56x
+  structural mode's raycast cost on the reference fixture — confirming, not
+  just predicting, the `three-mesh-bvh` re-evaluation in
+  `docs/open-source-resource-adoption.md`. Not fixed this audit (no
+  measured user-facing picking-latency complaint exists yet, only the
+  underlying cost measurement); `three-mesh-bvh` remains the recommended
+  next step if that changes.
+- **Yarn fuzz was evaluated and explicitly not implemented** — see
+  `docs/yarn-material-and-lighting.md`'s "Yarn fuzz" section for the
+  five-option comparison and the reasoning (every geometry-based option
+  would compound the raycast-cost limitation above).
+- **Single clipping plane**, not multiple — evaluated and deferred, see
+  `docs/clipping-and-section-views.md`. No visible clip-plane helper mesh,
+  same document.
+- **Production bundle is now one ~572 KB chunk / 146 KB gzipped**
+  (`npm run build`, re-measured after the completion audit; was ~534 KB/136 KB
+  before the original stitch-geometry slice, ~562 KB/144 KB after it). Still
+  one chunk, not code-split; the growth across both slices is this
+  project's own new code (path-inspection, measurement types, clipping
+  UI), not a new dependency (no runtime dependency was added — see
   `docs/open-source-resource-adoption.md`).
 - **Desktop-first.** A responsive CSS breakpoint exists, but touch-specific
   interaction (pinch-zoom, touch-drag orbit) has not been tuned or tested.

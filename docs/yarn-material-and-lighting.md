@@ -42,6 +42,43 @@ slider position), and only enables `depthWrite` once opacity is at or above
 0.98 — avoiding the classic transparent-object depth-sorting artifact where
 a fully-opaque object behind a translucent one is drawn in the wrong order.
 
+## Yarn fuzz — evaluated, deferred (this audit)
+
+The milestone-completion audit required an explicit evaluation of "fuzz"
+(surface fibre detail beyond the sheen highlight above) against five
+approaches, using the medium fixture (800-stitch synthetic pattern, see
+`tests/test_benchmark.py`) for comparison. **Decision: not implemented.**
+The sheen-based material above remains the only yarn-surface treatment.
+
+| Approach | Visual benefit | Triangle/fragment cost | Draw-call impact | X-ray compatibility | Clipping compatibility | Selection compatibility | Behaviour at zoom |
+|---|---|---|---|---|---|---|---|
+| **Sheen-only (current)** | Subtle grazing highlight reads as soft fibre without any geometry | Zero — already the existing material, no extra triangles | None — same draw calls as today | Already handled uniformly (`applyYarnMaterialState`) | Already clipped (same material as the base mesh) | Already handled (per-vertex colour already carries main/increase/decrease/selection) | Consistent at all zoom levels — doesn't reveal a smooth tube is "fake" any more up close than it already does |
+| Sparse camera-facing fibres | Would read as individual loose fibres at moderate zoom | Real geometry per stitch (small quads/line-strips) *and* either a per-frame CPU rebuild or a custom billboard shader to stay camera-facing — a materially different rendering approach from this project's "build once per quality/model change" convention | New draw call(s) per component at minimum | Fibres rendered translucently in X-ray mode has no clear semantic meaning (X-ray exists to see structure *through* the yarn, not more of the yarn's surface) | Camera-facing sprites near a clip boundary render inconsistently (a billboard doesn't clip like a solid surface) | Would need its own per-stitch colour-matching logic, duplicating what the base mesh already does | Convincing only in a narrow middle-zoom band; too sparse when zoomed out, obviously flat/2D when zoomed in close |
+| Shell/halo layers (fur-shell technique) | Most visually convincing "fuzzy" look of the five | **Multiplies the existing triangle count by the shell count** (typically 4-16 shells) — on a mesh already measured at 342K-987K triangles (`docs/performance-benchmarks.md`) and already the slowest raycast target in the app (631 ms/sweep vs. structural's 11.3 ms), this is the worst option by a wide margin | Multiplies draw calls or requires instancing work this codebase doesn't have | Alpha-tested shells under X-ray's opacity cap produce well-known shell-technique sorting artifacts | Each shell layer needs independent per-plane clipping | Same duplication problem as camera-facing fibres | Shell layers are notorious for looking correct only within a narrow distance band (too sparse far away, individual shells visible up close) |
+| Screen-space approximation | Decouples fuzz cost from triangle count entirely — the only option that doesn't make the already-measured raycast problem worse | Fragment-shader cost scales with screen resolution, not model complexity — genuinely the cheapest option by triangle count | One additional full-screen composite pass | Screen-space rim/edge effects are difficult to combine correctly with alpha-blended translucent geometry (X-ray mode) — well-documented general limitation of screen-space techniques, not specific to this codebase | Needs depth-aware masking against arbitrary world-space clip planes — real added complexity | Independent of mesh colouring, so no conflict | Reads well at most zoom levels since it's resolution-based, not geometry-based |
+| Small procedural strand cards | Similar visual target to shells, slightly cheaper | Adds real quad geometry per unit length along already-8,336 segments — stacks directly on top of the existing 515-3,880 ms yarn-build cost (`docs/performance-benchmarks.md`) | New draw call(s) | Alpha-tested cards under X-ray's opacity cap have the same sorting-artifact problem as shells | Clipped strand cards read as jagged flat-quad edges, less convincing than a clipped smooth tube | Same duplication problem as the other geometry-based options | Same narrow-band convincingness problem as shells |
+
+**Why sheen-only wins for this codebase specifically**: every geometry-based
+option (fibres, shells, strand cards) adds triangles on top of a mesh this
+same audit just measured as the app's single most expensive operation by a
+wide margin (yarn-mode raycast, `docs/performance-benchmarks.md`) — making
+a documented performance problem strictly worse in exchange for a fuzz
+effect nobody has asked for or measured a need for. The screen-space
+option avoids that specific problem, but requires exactly the kind of
+postprocessing dependency (`pmndrs/postprocessing`) this project has
+already evaluated and deferred twice now — first in the original
+stitch-geometry slice ("evaluate only against measured needs";
+`docs/open-source-resource-adoption.md`), and now here — for the same
+reason: no frame-time or visual-clarity problem has been measured that a
+postprocessing pass would fix, and X-ray/clipping compatibility for a
+screen-space effect is real, non-trivial added scope. **Revisit if**: a
+future fixture or user feedback identifies yarn-surface realism
+specifically (not raycast speed, not build time) as the limiting factor on
+visual quality — at that point, screen-space approximation is the
+recommended starting point of the five, precisely because it's the only
+one that doesn't compound the raycast-cost problem this audit already
+measured and flagged for `three-mesh-bvh`.
+
 ## Lighting presets (`viewer/src/scene/scene.ts`)
 
 Three presets, all built from the same key/fill/rim/hemisphere recipe —

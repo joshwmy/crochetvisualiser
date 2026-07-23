@@ -190,6 +190,13 @@ See: [Crochet IR](docs/crochet-ir-spec.md) ·
 [stitch graph](docs/stitch-graph-spec.md) ·
 [geometry transfer](docs/geometry-transfer-spec.md) ·
 [scientific viewer](docs/scientific-viewer-spec.md) ·
+[stitch geometry strategies](docs/stitch-geometry-strategies.md) ·
+[yarn material and lighting](docs/yarn-material-and-lighting.md) ·
+[measurement tools](docs/measurement-tools.md) ·
+[clipping and section views](docs/clipping-and-section-views.md) ·
+[performance benchmarks](docs/performance-benchmarks.md) ·
+[JSON Schema artefacts](docs/schema-artifacts.md) ·
+[procedural-yarn milestone audit](docs/procedural-yarn-milestone-audit.md) ·
 [written-pattern grammar](docs/written-pattern-grammar.md) ·
 [diagnostic codes](docs/diagnostic-codes.md) ·
 [compile API](docs/compile-api.md) ·
@@ -244,8 +251,12 @@ mypy                             # type check (strict)
 cd viewer
 npm run typecheck    # tsc --noEmit
 npm run build        # production build (tsc -b && vite build)
-npm test             # vitest run — unit tests + benchmark measurements
-npm run e2e          # Playwright: real browser against a real backend (starts both servers itself)
+npm test             # vitest run — unit tests + benchmark measurements (build time, raycast, interaction ops)
+npm run e2e          # Playwright: compile workflow, lifecycle/leak stress, visual regression — real browser + backend (starts both servers itself)
+```
+
+```bash
+python -m crochet_reconstruction.api.schema_export   # regenerate schemas/*.schema.json after changing StitchGraph/GeometryDocument/CompileRequest/CompileResponse/Diagnostic
 ```
 
 ## Architecture summary
@@ -266,8 +277,10 @@ src/crochet_reconstruction/
 └── cli.py                # Thin I/O wrapper: JSON in, files out.
 
 viewer/                    # Vite + TypeScript + Three.js scientific 3D viewer (separate npm project).
-├── e2e/                   # Playwright: real-browser compile-workflow test.
-└── tests/                 # Vitest: unit/module tests.
+├── e2e/                   # Playwright: compile-workflow, lifecycle/leak stress, visual regression.
+└── tests/                 # Vitest: unit/module tests + build/raycast/interaction benchmarks.
+
+schemas/                   # Committed, versioned JSON Schema artefacts — see docs/schema-artifacts.md.
 ```
 
 The domain engine has **zero dependency** on FastAPI, a database, a
