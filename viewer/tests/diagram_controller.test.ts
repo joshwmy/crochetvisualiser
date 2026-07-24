@@ -239,4 +239,79 @@ describe("DiagramController", () => {
     expect(controller.store.get().status).toBe("analysed");
     expect(controller.store.get().document).toEqual(sampleDocument);
   });
+
+  it("selectSymbol and selectRelationship are independent, not mutually exclusive", async () => {
+    const controller = new DiagramController(makeFakeApp());
+    controller.selectSymbol("svg-symbol-0");
+    controller.selectRelationship("rel-00001");
+    expect(controller.store.get().selectedSymbolId).toBe("svg-symbol-0");
+    expect(controller.store.get().selectedRelationshipId).toBe("rel-00001");
+  });
+
+  it("addRelationshipOverride appends to the correction set", () => {
+    const controller = new DiagramController(makeFakeApp());
+    controller.addRelationshipOverride({
+      symbol_id: "svg-symbol-0",
+      action: "set_parent",
+      parent_symbol_ids: ["svg-symbol-1"],
+    });
+    expect(controller.store.get().corrections.relationship_overrides).toEqual([
+      { symbol_id: "svg-symbol-0", action: "set_parent", parent_symbol_ids: ["svg-symbol-1"] },
+    ]);
+  });
+
+  it("setViewport updates store state and resetCorrections leaves it untouched", () => {
+    const controller = new DiagramController(makeFakeApp());
+    controller.setViewport({ x: 1, y: 2, width: 3, height: 4 });
+    expect(controller.store.get().viewport).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+    controller.resetCorrections();
+    expect(controller.store.get().viewport).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+  });
+
+  it("rejects an analyse response carrying an unsupported diagram schema_version", async () => {
+    analyseDiagramMock.mockResolvedValue({
+      ...analyseSuccess,
+      diagram: { ...sampleDocument, schema_version: "99.0.0" },
+    });
+    const controller = new DiagramController(makeFakeApp());
+
+    await controller.analyse("<svg></svg>");
+
+    expect(controller.store.get().status).toBe("internal_error");
+    expect(controller.store.get().errorMessage).toMatch(/unsupported diagram schema_version/i);
+    expect(controller.store.get().document).toBeNull();
+  });
+
+  it("rejects a compile response carrying an unsupported diagram schema_version", async () => {
+    analyseDiagramMock.mockResolvedValue(analyseSuccess);
+    compileDiagramMock.mockResolvedValue({
+      ...compileSuccess,
+      diagram: { ...sampleDocument, schema_version: "99.0.0" },
+    });
+    const app = makeFakeApp();
+    const controller = new DiagramController(app);
+
+    await controller.analyse("<svg></svg>");
+    await controller.compile();
+
+    expect(app.loadGeometryDocument).not.toHaveBeenCalled();
+    expect(controller.store.get().status).toBe("internal_error");
+    expect(controller.store.get().errorMessage).toMatch(/unsupported diagram schema_version/i);
+    // The last valid (correctly-versioned) document from analyse must survive.
+    expect(controller.store.get().document).toEqual(sampleDocument);
+  });
+
+  it("a fresh analyse resets symbol/relationship selection and viewport", async () => {
+    analyseDiagramMock.mockResolvedValue(analyseSuccess);
+    const controller = new DiagramController(makeFakeApp());
+    controller.selectSymbol("svg-symbol-0");
+    controller.selectRelationship("rel-00001");
+    controller.setViewport({ x: 1, y: 2, width: 3, height: 4 });
+
+    await controller.analyse("<svg></svg>");
+
+    expect(controller.store.get().selectedSymbolId).toBeNull();
+    expect(controller.store.get().selectedRelationshipId).toBeNull();
+    expect(controller.store.get().viewport).toBeNull();
+  });
 });

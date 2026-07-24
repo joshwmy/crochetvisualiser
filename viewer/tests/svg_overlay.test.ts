@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderDiagramOverlay, defaultOverlayFilters } from "../src/diagram/svg_overlay";
+import { renderDiagramOverlay, defaultOverlayFilters, nativeViewport } from "../src/diagram/svg_overlay";
 import type { DiagramDocument, DiagramSymbol } from "../src/types/diagram";
 
 function makeSymbol(overrides: Partial<DiagramSymbol>): DiagramSymbol {
@@ -191,5 +191,90 @@ describe("renderDiagramOverlay", () => {
     const otherCircle = container.querySelector('[data-symbol-id="b"] circle')!;
     expect(selectedCircle.getAttribute("stroke")).toBe("#000000");
     expect(otherCircle.getAttribute("stroke")).toBe("#ffffff");
+  });
+
+  it("renders a visible text label for a classified symbol's stitch type", () => {
+    const container = document.createElement("div");
+    const doc = makeDocument([makeSymbol({ symbol_id: "a", stitch_type: "double_crochet" })]);
+    renderDiagramOverlay(container, doc, defaultOverlayFilters(), {
+      selectedSymbolId: null,
+      onSelectSymbol: vi.fn(),
+    });
+    const label = container.querySelector('[data-symbol-id="a"] text[data-role="symbol-label"]');
+    expect(label?.textContent).toBe("dc");
+  });
+
+  it("invokes onSelectRelationship when a relationship line is clicked", () => {
+    const container = document.createElement("div");
+    const symbols = [makeSymbol({ symbol_id: "a" }), makeSymbol({ symbol_id: "b", position: [40, 40] })];
+    const doc: DiagramDocument = {
+      ...makeDocument(symbols),
+      relationships: [
+        {
+          relationship_id: "rel-1",
+          source_symbol_ids: ["a"],
+          target_symbol_ids: ["b"],
+          relationship_type: "parent_attachment",
+          inference_method: "radial_projection",
+          confidence: 0.5,
+          evidence: "test",
+          user_override: false,
+        },
+      ],
+    };
+    const onSelectRelationship = vi.fn();
+    renderDiagramOverlay(container, doc, defaultOverlayFilters(), {
+      selectedSymbolId: null,
+      onSelectSymbol: vi.fn(),
+      onSelectRelationship,
+    });
+    const line = container.querySelector('[data-relationship-id="rel-1"]') as SVGLineElement;
+    line.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onSelectRelationship).toHaveBeenCalledWith("rel-1");
+  });
+
+  it("marks the selected relationship with a distinct stroke colour", () => {
+    const container = document.createElement("div");
+    const symbols = [makeSymbol({ symbol_id: "a" }), makeSymbol({ symbol_id: "b", position: [40, 40] })];
+    const doc: DiagramDocument = {
+      ...makeDocument(symbols),
+      relationships: [
+        {
+          relationship_id: "rel-1",
+          source_symbol_ids: ["a"],
+          target_symbol_ids: ["b"],
+          relationship_type: "parent_attachment",
+          inference_method: "radial_projection",
+          confidence: 0.5,
+          evidence: "test",
+          user_override: false,
+        },
+      ],
+    };
+    renderDiagramOverlay(container, doc, defaultOverlayFilters(), {
+      selectedSymbolId: null,
+      selectedRelationshipId: "rel-1",
+      onSelectSymbol: vi.fn(),
+    });
+    const line = container.querySelector('[data-relationship-id="rel-1"]')!;
+    expect(line.getAttribute("stroke")).toBe("#d81b60");
+  });
+
+  it("uses a custom viewport for the SVG viewBox when provided, else the document's native one", () => {
+    const container = document.createElement("div");
+    const doc = makeDocument([makeSymbol({ symbol_id: "a" })]);
+    const svg = renderDiagramOverlay(container, doc, defaultOverlayFilters(), {
+      selectedSymbolId: null,
+      onSelectSymbol: vi.fn(),
+      viewport: { x: 10, y: 20, width: 30, height: 40 },
+    });
+    expect(svg.getAttribute("viewBox")).toBe("10 20 30 40");
+
+    const svgDefault = renderDiagramOverlay(container, doc, defaultOverlayFilters(), {
+      selectedSymbolId: null,
+      onSelectSymbol: vi.fn(),
+    });
+    expect(svgDefault.getAttribute("viewBox")).toBe("0 0 100 100");
+    expect(nativeViewport(doc)).toEqual({ x: 0, y: 0, width: 100, height: 100 });
   });
 });

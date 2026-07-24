@@ -92,7 +92,18 @@
               <label><input type="checkbox" id="diagram-only-unclassified" /> Unclassified only</label>
               <label><input type="checkbox" id="diagram-only-low-confidence" /> Low confidence only</label>
             </div>
-            <div id="diagram-preview" role="img" aria-label="Diagram preview"></div>
+            <div class="button-row">
+              <button id="diagram-zoom-in" type="button" aria-label="Zoom in">+</button>
+              <button id="diagram-zoom-out" type="button" aria-label="Zoom out">−</button>
+              <button id="diagram-fit-view" type="button">Fit to view</button>
+            </div>
+            <label for="diagram-round-filter">Visible rounds</label>
+            <select id="diagram-round-filter" multiple size="4"></select>
+            <div
+              id="diagram-preview"
+              role="img"
+              aria-label="Diagram preview — scroll to zoom, drag to pan"
+            ></div>
 
             <h3>Symbols</h3>
             <ul id="diagram-symbol-list" aria-label="Extracted symbols"></ul>
@@ -113,6 +124,10 @@
                 <option value="decrease">Decrease</option>
                 <option value="join">Join / round closure</option>
               </select>
+              <label for="diagram-round-index-input">Round</label>
+              <input type="number" id="diagram-round-index-input" min="0" step="1" />
+              <label for="diagram-sequence-index-input">Position within round</label>
+              <input type="number" id="diagram-sequence-index-input" min="0" step="1" />
               <div class="button-row">
                 <label><input type="checkbox" id="diagram-mark-ignored" /> Ignore this symbol</label>
                 <label><input type="checkbox" id="diagram-mark-round-start" /> Round start</label>
@@ -124,9 +139,39 @@
               </div>
             </div>
 
+            <div id="diagram-relationship-panel" hidden>
+              <h3>Correct selected relationship</h3>
+              <dl id="diagram-selected-relationship-info"></dl>
+              <div class="button-row">
+                <button id="diagram-relationship-confirm" type="button">Confirm</button>
+                <button id="diagram-relationship-set-parent" type="button">
+                  Set parent = selected symbol
+                </button>
+                <button id="diagram-relationship-add-parent" type="button">
+                  Add selected symbol as parent
+                </button>
+                <button id="diagram-relationship-remove-parent" type="button">Remove this parent</button>
+                <button id="diagram-relationship-restore" type="button">Restore automatic</button>
+              </div>
+            </div>
+
+            <h3>Chart construction</h3>
             <div class="button-row">
               <button id="diagram-reverse-direction" type="button">Reverse round direction</button>
               <button id="diagram-reset-corrections" type="button">Reset all corrections</button>
+            </div>
+            <label for="diagram-centre-x-input">Centre X</label>
+            <input type="number" id="diagram-centre-x-input" step="any" />
+            <label for="diagram-centre-y-input">Centre Y</label>
+            <input type="number" id="diagram-centre-y-input" step="any" />
+            <label for="diagram-start-symbol-select">Starting stitch</label>
+            <select id="diagram-start-symbol-select">
+              <option value="">(automatic)</option>
+            </select>
+            <label for="diagram-round-tolerance-input">Round-clustering tolerance</label>
+            <input type="number" id="diagram-round-tolerance-input" min="0" step="any" />
+            <div class="button-row">
+              <button id="diagram-apply-construction" type="button">Apply chart settings</button>
             </div>
           </section>
 

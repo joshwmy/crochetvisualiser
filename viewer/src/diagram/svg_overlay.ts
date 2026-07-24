@@ -44,6 +44,18 @@ export interface OverlayFilters {
   onlyLowConfidence: boolean;
 }
 
+const STITCH_ABBREVIATION: Record<string, string> = {
+  magic_ring: "MR",
+  chain: "ch",
+  slip_stitch: "sl st",
+  single_crochet: "sc",
+  half_double_crochet: "hdc",
+  double_crochet: "dc",
+  increase: "inc",
+  decrease: "dec",
+  join: "join",
+};
+
 export function defaultOverlayFilters(): OverlayFilters {
   return { visibleRounds: null, showRelationships: true, onlyUnclassified: false, onlyLowConfidence: false };
 }
@@ -65,19 +77,35 @@ function symbolVisible(symbol: DiagramSymbol, filters: OverlayFilters): boolean 
  * Builds (or rebuilds into `container`) the safe SVG preview. Returns the
  * root `<svg>` element for further manipulation (e.g. pan/zoom transform).
  */
+export interface DiagramViewport {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The document's native viewBox — the viewport that `fitToView` restores. */
+export function nativeViewport(document_: DiagramDocument): DiagramViewport {
+  const [minX, minY, maxX, maxY] = document_.source.view_box;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 export function renderDiagramOverlay(
   container: HTMLElement,
   document_: DiagramDocument,
   filters: OverlayFilters,
   options: {
     selectedSymbolId: string | null;
+    selectedRelationshipId?: string | null;
     onSelectSymbol: (symbolId: string) => void;
+    onSelectRelationship?: (relationshipId: string) => void;
+    viewport?: DiagramViewport;
   },
 ): SVGSVGElement {
   container.innerHTML = "";
   const svg = el("svg");
-  const [minX, minY, maxX, maxY] = document_.source.view_box;
-  svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+  const viewport = options.viewport ?? nativeViewport(document_);
+  svg.setAttribute("viewBox", `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`);
   svg.setAttribute("width", "100%");
   svg.setAttribute("height", "100%");
   svg.setAttribute("role", "img");
@@ -98,15 +126,40 @@ export function renderDiagramOverlay(
       const to = positionById.get(rel.target_symbol_ids[0]);
       if (!from || !to) continue;
       if (!visibleIds.has(rel.source_symbol_ids[0])) continue;
+      const isSelectedRel = rel.relationship_id === options.selectedRelationshipId;
       const line = el("line");
       line.setAttribute("x1", String(from[0]));
       line.setAttribute("y1", String(from[1]));
       line.setAttribute("x2", String(to[0]));
       line.setAttribute("y2", String(to[1]));
-      line.setAttribute("stroke", colour);
-      line.setAttribute("stroke-width", rel.inference_method === "explicit_connector" ? "1.5" : "0.8");
+      line.setAttribute("stroke", isSelectedRel ? "#d81b60" : colour);
+      line.setAttribute(
+        "stroke-width",
+        isSelectedRel ? "3" : rel.inference_method === "explicit_connector" ? "1.5" : "0.8",
+      );
       line.setAttribute("stroke-dasharray", rel.confidence < 0.6 ? "2,2" : "");
       line.setAttribute("data-relationship-id", rel.relationship_id);
+      line.setAttribute("role", "button");
+      line.setAttribute("tabindex", "0");
+      line.setAttribute(
+        "aria-label",
+        `Relationship ${rel.relationship_id}: ${rel.relationship_type}, ${rel.inference_method}`,
+      );
+      line.style.cursor = options.onSelectRelationship ? "pointer" : "default";
+      if (options.onSelectRelationship) {
+        const onSelectRelationship = options.onSelectRelationship;
+        const activateRel = (): void => onSelectRelationship(rel.relationship_id);
+        line.addEventListener("click", (event) => {
+          event.stopPropagation();
+          activateRel();
+        });
+        line.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activateRel();
+          }
+        });
+      }
       relGroup.appendChild(line);
     }
     svg.appendChild(relGroup);
@@ -141,6 +194,10 @@ export function renderDiagramOverlay(
     circle.setAttribute("stroke-width", isSelected ? "2" : "1");
     g.appendChild(circle);
 
+    const title = el("title");
+    title.textContent = `${symbol.symbol_id}: ${symbol.stitch_type ?? "unclassified"} (${symbol.confidence_band})`;
+    g.appendChild(title);
+
     if (symbol.ambiguous || symbol.unsupported || symbol.stitch_type === null) {
       const marker = el("text");
       marker.setAttribute("x", String(x));
@@ -151,6 +208,22 @@ export function renderDiagramOverlay(
       marker.setAttribute("pointer-events", "none");
       marker.textContent = "?";
       g.appendChild(marker);
+    }
+
+    // Visible stitch-type label below the symbol — distinct from the
+    // in-circle "?" ambiguity marker and from the confidence-colour
+    // legend, so a classified symbol's type is readable without a hover.
+    if (symbol.stitch_type !== null) {
+      const label = el("text");
+      label.setAttribute("data-role", "symbol-label");
+      label.setAttribute("x", String(x));
+      label.setAttribute("y", String(y + radius + 6));
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("font-size", "6");
+      label.setAttribute("fill", "#212121");
+      label.setAttribute("pointer-events", "none");
+      label.textContent = STITCH_ABBREVIATION[symbol.stitch_type] ?? symbol.stitch_type;
+      g.appendChild(label);
     }
 
     const activate = (): void => options.onSelectSymbol(symbol.symbol_id);

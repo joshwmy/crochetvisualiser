@@ -11,8 +11,9 @@ import { AMIGURUMI_EXAMPLE } from "./examples";
 import { PATH_ROLE_LEGEND } from "./selection/path_inspection";
 import { GRAPH_OVERLAY_LEGEND } from "./selection/graph_overlay";
 import type { SegmentRole } from "./geometry/stitch_paths/types";
-import { renderDiagramOverlay, CONFIDENCE_LEGEND } from "./diagram/svg_overlay";
-import type { DiagramSymbol } from "./types/diagram";
+import { renderDiagramOverlay, CONFIDENCE_LEGEND, nativeViewport } from "./diagram/svg_overlay";
+import type { DiagramViewport } from "./diagram/svg_overlay";
+import type { DiagramRelationship, DiagramSymbol } from "./types/diagram";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const errorBanner = document.getElementById("viewer-error") as HTMLDivElement;
@@ -666,6 +667,9 @@ function diagramDiagnosticList(
     .join("");
 }
 
+const ZOOM_FACTOR = 1.3;
+const CORRECTABLE_RELATIONSHIP_TYPES = new Set(["parent_attachment", "centre_attachment"]);
+
 function wireDiagramWorkflow(app: App, controller: DiagramController): void {
   const fileInput = qs<HTMLInputElement>("diagram-file-input");
   const sourceTextarea = qs<HTMLTextAreaElement>("diagram-source");
@@ -681,6 +685,8 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
   const correctionPanel = qs<HTMLDivElement>("diagram-correction-panel");
   const selectedInfoEl = qs<HTMLDListElement>("diagram-selected-symbol-info");
   const stitchTypeSelect = qs<HTMLSelectElement>("diagram-stitch-type-select");
+  const roundIndexInput = qs<HTMLInputElement>("diagram-round-index-input");
+  const sequenceIndexInput = qs<HTMLInputElement>("diagram-sequence-index-input");
   const markIgnored = qs<HTMLInputElement>("diagram-mark-ignored");
   const markRoundStart = qs<HTMLInputElement>("diagram-mark-round-start");
   const markRoundClosure = qs<HTMLInputElement>("diagram-mark-round-closure");
@@ -693,6 +699,22 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
   const showRelationships = qs<HTMLInputElement>("diagram-show-relationships");
   const onlyUnclassified = qs<HTMLInputElement>("diagram-only-unclassified");
   const onlyLowConfidence = qs<HTMLInputElement>("diagram-only-low-confidence");
+  const zoomInButton = qs<HTMLButtonElement>("diagram-zoom-in");
+  const zoomOutButton = qs<HTMLButtonElement>("diagram-zoom-out");
+  const fitViewButton = qs<HTMLButtonElement>("diagram-fit-view");
+  const roundFilterSelect = qs<HTMLSelectElement>("diagram-round-filter");
+  const relationshipPanel = qs<HTMLDivElement>("diagram-relationship-panel");
+  const relationshipInfoEl = qs<HTMLDListElement>("diagram-selected-relationship-info");
+  const relConfirmButton = qs<HTMLButtonElement>("diagram-relationship-confirm");
+  const relSetParentButton = qs<HTMLButtonElement>("diagram-relationship-set-parent");
+  const relAddParentButton = qs<HTMLButtonElement>("diagram-relationship-add-parent");
+  const relRemoveParentButton = qs<HTMLButtonElement>("diagram-relationship-remove-parent");
+  const relRestoreButton = qs<HTMLButtonElement>("diagram-relationship-restore");
+  const centreXInput = qs<HTMLInputElement>("diagram-centre-x-input");
+  const centreYInput = qs<HTMLInputElement>("diagram-centre-y-input");
+  const startSymbolSelect = qs<HTMLSelectElement>("diagram-start-symbol-select");
+  const roundToleranceInput = qs<HTMLInputElement>("diagram-round-tolerance-input");
+  const applyConstructionButton = qs<HTMLButtonElement>("diagram-apply-construction");
 
   legendEl.innerHTML = CONFIDENCE_LEGEND.map(
     ({ color, label }) =>
@@ -710,8 +732,11 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
   });
 
   function currentFilters() {
+    const selectedRounds = Array.from(roundFilterSelect.selectedOptions, (o) => Number(o.value));
     return {
-      visibleRounds: null,
+      // Nothing selected reads as "all rounds visible" — an empty
+      // multi-select shouldn't blank the whole preview by default.
+      visibleRounds: selectedRounds.length > 0 ? new Set(selectedRounds) : null,
       showRelationships: showRelationships.checked,
       onlyUnclassified: onlyUnclassified.checked,
       onlyLowConfidence: onlyLowConfidence.checked,
@@ -723,10 +748,83 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
       controller.store.set({ filters: currentFilters() });
     });
   }
+  roundFilterSelect.addEventListener("change", () => {
+    controller.store.set({ filters: currentFilters() });
+  });
+
+  // --- pan/zoom -----------------------------------------------------
+  // `previewContainer` is stable across renders (renderDiagramOverlay
+  // rebuilds only its `<svg>` child), so listeners live here rather than
+  // on the regenerated SVG.
+  function currentViewport(): DiagramViewport {
+    const state = controller.store.get();
+    if (state.viewport) return state.viewport;
+    return state.document ? nativeViewport(state.document) : { x: 0, y: 0, width: 1, height: 1 };
+  }
+
+  function zoom(factor: number, aboutFraction: { fx: number; fy: number } = { fx: 0.5, fy: 0.5 }): void {
+    const v = currentViewport();
+    const newWidth = v.width / factor;
+    const newHeight = v.height / factor;
+    const anchorX = v.x + v.width * aboutFraction.fx;
+    const anchorY = v.y + v.height * aboutFraction.fy;
+    controller.setViewport({
+      x: anchorX - newWidth * aboutFraction.fx,
+      y: anchorY - newHeight * aboutFraction.fy,
+      width: newWidth,
+      height: newHeight,
+    });
+  }
+
+  zoomInButton.addEventListener("click", () => zoom(ZOOM_FACTOR));
+  zoomOutButton.addEventListener("click", () => zoom(1 / ZOOM_FACTOR));
+  fitViewButton.addEventListener("click", () => controller.setViewport(null));
+
+  previewContainer.addEventListener(
+    "wheel",
+    (event) => {
+      if (!controller.store.get().document) return;
+      event.preventDefault();
+      const rect = previewContainer.getBoundingClientRect();
+      const fx = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
+      const fy = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+      zoom(event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR, { fx, fy });
+    },
+    { passive: false },
+  );
+
+  let dragStart: { clientX: number; clientY: number; viewport: DiagramViewport } | null = null;
+  previewContainer.addEventListener("mousedown", (event) => {
+    if (!controller.store.get().document) return;
+    dragStart = { clientX: event.clientX, clientY: event.clientY, viewport: currentViewport() };
+  });
+  window.addEventListener("mousemove", (event) => {
+    if (!dragStart) return;
+    const rect = previewContainer.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dxUnits = ((event.clientX - dragStart.clientX) / rect.width) * dragStart.viewport.width;
+    const dyUnits = ((event.clientY - dragStart.clientY) / rect.height) * dragStart.viewport.height;
+    controller.setViewport({
+      ...dragStart.viewport,
+      x: dragStart.viewport.x - dxUnits,
+      y: dragStart.viewport.y - dyUnits,
+    });
+  });
+  window.addEventListener("mouseup", () => {
+    dragStart = null;
+  });
 
   function selectedSymbol(state: DiagramState): DiagramSymbol | null {
     if (!state.document || !state.selectedSymbolId) return null;
     return state.document.symbols.find((s) => s.symbol_id === state.selectedSymbolId) ?? null;
+  }
+
+  function selectedRelationship(state: DiagramState): DiagramRelationship | null {
+    if (!state.document || !state.selectedRelationshipId) return null;
+    return (
+      state.document.relationships.find((r) => r.relationship_id === state.selectedRelationshipId) ??
+      null
+    );
   }
 
   applyButton.addEventListener("click", () => {
@@ -734,6 +832,8 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
     if (!state.selectedSymbolId) return;
     controller.setSymbolOverride(state.selectedSymbolId, {
       stitch_type: (stitchTypeSelect.value || null) as never,
+      round_index: roundIndexInput.value === "" ? null : Number(roundIndexInput.value),
+      sequence_index: sequenceIndexInput.value === "" ? null : Number(sequenceIndexInput.value),
       ignored: markIgnored.checked || null,
       round_start: markRoundStart.checked || null,
       round_closure: markRoundClosure.checked || null,
@@ -746,18 +846,78 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
     controller.setSymbolOverride(state.selectedSymbolId, null);
   });
 
+  function currentConstructionOverrides() {
+    return controller.store.get().corrections.construction_overrides ?? {};
+  }
+
   reverseButton.addEventListener("click", () => {
     const state = controller.store.get();
-    const currentDirection = state.document?.construction.direction;
+    const existing = currentConstructionOverrides();
+    const currentDirection = existing.direction ?? state.document?.construction.direction;
     controller.setConstructionOverride({
+      ...existing,
       direction: currentDirection === "counterclockwise" ? "clockwise" : "counterclockwise",
     });
+  });
+
+  applyConstructionButton.addEventListener("click", () => {
+    const existing = currentConstructionOverrides();
+    const update = { ...existing };
+    if (centreXInput.value !== "" && centreYInput.value !== "") {
+      update.centre = [Number(centreXInput.value), Number(centreYInput.value)];
+    }
+    if (startSymbolSelect.value !== "") update.start_symbol_id = startSymbolSelect.value;
+    if (roundToleranceInput.value !== "") update.round_tolerance = Number(roundToleranceInput.value);
+    controller.setConstructionOverride(update);
   });
 
   resetButton.addEventListener("click", () => controller.resetCorrections());
 
   compileButton.addEventListener("click", () => void controller.compile());
   returnButton.addEventListener("click", () => controller.returnToReview());
+
+  relConfirmButton.addEventListener("click", () => {
+    const rel = selectedRelationship(controller.store.get());
+    if (!rel) return;
+    controller.addRelationshipOverride({ symbol_id: rel.source_symbol_ids[0], action: "confirm" });
+  });
+  relSetParentButton.addEventListener("click", () => {
+    const state = controller.store.get();
+    const rel = selectedRelationship(state);
+    if (!rel || !state.selectedSymbolId) return;
+    controller.addRelationshipOverride({
+      symbol_id: rel.source_symbol_ids[0],
+      action: "set_parent",
+      parent_symbol_ids: [state.selectedSymbolId],
+    });
+  });
+  relAddParentButton.addEventListener("click", () => {
+    const state = controller.store.get();
+    const rel = selectedRelationship(state);
+    if (!rel || !state.selectedSymbolId) return;
+    controller.addRelationshipOverride({
+      symbol_id: rel.source_symbol_ids[0],
+      action: "add_parent",
+      parent_symbol_ids: [state.selectedSymbolId],
+    });
+  });
+  relRemoveParentButton.addEventListener("click", () => {
+    const rel = selectedRelationship(controller.store.get());
+    if (!rel) return;
+    controller.addRelationshipOverride({
+      symbol_id: rel.source_symbol_ids[0],
+      action: "remove_parent",
+      parent_symbol_ids: [...rel.target_symbol_ids],
+    });
+  });
+  relRestoreButton.addEventListener("click", () => {
+    const rel = selectedRelationship(controller.store.get());
+    if (!rel) return;
+    controller.addRelationshipOverride({
+      symbol_id: rel.source_symbol_ids[0],
+      action: "restore_automatic",
+    });
+  });
 
   controller.store.subscribe((state) => {
     status.textContent = DIAGRAM_STATUS_LABELS[state.status] || state.errorMessage || "";
@@ -790,14 +950,36 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
     if (!state.document || state.viewStage === "compiled") {
       symbolListEl.innerHTML = "";
       correctionPanel.hidden = true;
+      relationshipPanel.hidden = true;
       if (state.viewStage === "compiled") refreshDocDependentUI(app);
       return;
     }
 
     renderDiagramOverlay(previewContainer, state.document, state.filters, {
       selectedSymbolId: state.selectedSymbolId,
+      selectedRelationshipId: state.selectedRelationshipId,
       onSelectSymbol: (symbolId) => controller.selectSymbol(symbolId),
+      onSelectRelationship: (relationshipId) => controller.selectRelationship(relationshipId),
+      viewport: state.viewport ?? undefined,
     });
+
+    const roundNumbers = Array.from(new Set(state.document.rounds.map((r) => r.round_index))).sort(
+      (a, b) => a - b,
+    );
+    const currentRoundFilterValues = new Set(
+      Array.from(roundFilterSelect.selectedOptions, (o) => o.value),
+    );
+    roundFilterSelect.innerHTML = roundNumbers
+      .map((n) => `<option value="${n}"${currentRoundFilterValues.has(String(n)) ? " selected" : ""}>Round ${n}</option>`)
+      .join("");
+
+    const currentStartValue = startSymbolSelect.value;
+    startSymbolSelect.innerHTML =
+      `<option value="">(automatic)</option>` +
+      state.document.symbols
+        .map((s) => `<option value="${s.symbol_id}">${s.symbol_id}</option>`)
+        .join("");
+    startSymbolSelect.value = currentStartValue;
 
     symbolListEl.innerHTML = state.document.symbols
       .map((s) => {
@@ -816,15 +998,50 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
         ["Classification method", symbol.classification_method],
         ["Confidence", `${symbol.confidence.toFixed(2)} (${symbol.confidence_band})`],
         ["Round", symbol.round_index !== null ? String(symbol.round_index) : "(unassigned)"],
+        [
+          "Sequence position",
+          symbol.sequence_index !== null ? String(symbol.sequence_index) : "(unassigned)",
+        ],
       ]
         .map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`)
         .join("");
       stitchTypeSelect.value = symbol.stitch_type ?? "";
       const override = state.corrections.symbol_overrides[symbol.symbol_id];
+      roundIndexInput.value = override?.round_index != null ? String(override.round_index) : "";
+      sequenceIndexInput.value =
+        override?.sequence_index != null ? String(override.sequence_index) : "";
       markIgnored.checked = override?.ignored === true;
       markRoundStart.checked = symbol.round_start;
       markRoundClosure.checked = symbol.round_closure;
     }
+
+    const rel = selectedRelationship(state);
+    relationshipPanel.hidden = !rel;
+    if (rel) {
+      const correctable = CORRECTABLE_RELATIONSHIP_TYPES.has(rel.relationship_type);
+      relationshipInfoEl.innerHTML = [
+        ["Relationship ID", rel.relationship_id],
+        ["Type", rel.relationship_type],
+        ["Inference method", rel.inference_method],
+        ["Confidence", rel.confidence.toFixed(2)],
+        ["Child symbol", rel.source_symbol_ids.join(", ")],
+        ["Current parent(s)", rel.target_symbol_ids.join(", ") || "(none)"],
+        ...(correctable ? [] : [["Note", "Only parent/centre-attachment relationships are correctable."]]),
+      ]
+        .map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`)
+        .join("");
+      for (const button of [relConfirmButton, relSetParentButton, relAddParentButton, relRemoveParentButton, relRestoreButton]) {
+        button.disabled = !correctable;
+      }
+      relSetParentButton.disabled = relSetParentButton.disabled || !state.selectedSymbolId;
+      relAddParentButton.disabled = relAddParentButton.disabled || !state.selectedSymbolId;
+    }
+
+    const construction = state.corrections.construction_overrides;
+    centreXInput.value = construction?.centre ? String(construction.centre[0]) : "";
+    centreYInput.value = construction?.centre ? String(construction.centre[1]) : "";
+    roundToleranceInput.value =
+      construction?.round_tolerance != null ? String(construction.round_tolerance) : "";
   });
 
   symbolListEl.addEventListener("click", (event) => {

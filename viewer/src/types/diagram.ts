@@ -174,3 +174,10 @@ export interface DiagramCorrectionSet {
 export function emptyCorrectionSet(): DiagramCorrectionSet {
   return { symbol_overrides: {}, relationship_overrides: [], construction_overrides: null };
 }
+
+// Mirrors diagram/ir.py's DIAGRAM_SCHEMA_VERSION. An exact-match check, not
+// a semver-compatible range, matching geometry/load.ts's
+// SUPPORTED_SCHEMA_VERSION precedent for this project's versioning
+// strategy: a schema bump is a deliberate, coordinated frontend+backend
+// change, never something a mismatched pair should silently limp through.
+export const SUPPORTED_DIAGRAM_SCHEMA_VERSION = "1.0.0";

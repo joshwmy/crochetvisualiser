@@ -2,7 +2,7 @@ import { Store } from "./store";
 import type { DiagramAnalyseSummary, DiagramCompileResponse } from "../api/diagram_client";
 import type { DiagramCorrectionSet, DiagramDiagnostic, DiagramDocument } from "../types/diagram";
 import { emptyCorrectionSet } from "../types/diagram";
-import type { OverlayFilters } from "../diagram/svg_overlay";
+import type { DiagramViewport, OverlayFilters } from "../diagram/svg_overlay";
 import { defaultOverlayFilters } from "../diagram/svg_overlay";
 
 export type DiagramStatus =
@@ -28,7 +28,9 @@ export interface DiagramState {
   document: DiagramDocument | null;
   corrections: DiagramCorrectionSet;
   selectedSymbolId: string | null;
+  selectedRelationshipId: string | null;
   filters: OverlayFilters;
+  viewport: DiagramViewport | null; // null = fit to the document's native viewBox
   diagnostics: DiagramDiagnostic[];
   summary: DiagramAnalyseSummary | null;
   lastCompileSummary: DiagramCompileResponse["summary"] | null;
@@ -44,7 +46,9 @@ export function createInitialDiagramState(): DiagramState {
     document: null,
     corrections: emptyCorrectionSet(),
     selectedSymbolId: null,
+    selectedRelationshipId: null,
     filters: defaultOverlayFilters(),
+    viewport: null,
     diagnostics: [],
     summary: null,
     lastCompileSummary: null,
