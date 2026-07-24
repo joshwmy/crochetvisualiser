@@ -211,6 +211,12 @@ def compile_svg_diagram(
         if rel.inference_method == "explicit_connector"
     }
 
+    sequence_pins = {
+        symbol_id: override.sequence_index
+        for symbol_id, override in corrections.symbol_overrides.items()
+        if override.sequence_index is not None
+    }
+
     try:
         topology = infer_topology(
             corrected_symbols,
@@ -218,6 +224,7 @@ def compile_svg_diagram(
             construction,
             limits,
             explicit_parent_overrides=original_explicit_parents,
+            sequence_pins=sequence_pins,
         )
     except Exception:
         logger.exception("Unexpected error re-inferring diagram topology during compile")

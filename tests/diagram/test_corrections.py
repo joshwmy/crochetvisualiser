@@ -154,6 +154,33 @@ def test_corrections_are_deterministic_and_serialisable():
     assert result_a.compiled.graph.fingerprint == result_b.compiled.graph.fingerprint
 
 
+def test_sequence_index_override_reorders_within_round():
+    """A sequence_index correction must actually move the symbol's working
+    position within its round — not be silently discarded by topology
+    re-inference (the fix for the previously partial correction)."""
+    document = analyse_svg_diagram(_ring_svg([6], [30])).document
+    round_symbol_ids = document.rounds[0].symbol_ids
+    last_symbol_id = round_symbol_ids[-1]
+
+    corrections = DiagramCorrectionSet(
+        symbol_overrides={last_symbol_id: SymbolOverride(sequence_index=0)}
+    )
+    result = compile_svg_diagram(document, corrections)
+    assert result.document.rounds[0].symbol_ids[0] == last_symbol_id
+    # Round membership is unaffected — same 6 symbols, just reordered.
+    assert set(result.document.rounds[0].symbol_ids) == set(round_symbol_ids)
+
+
+def test_sequence_index_override_out_of_range_clamps_not_crashes():
+    document = analyse_svg_diagram(_ring_svg([6], [30])).document
+    first_symbol_id = document.rounds[0].symbol_ids[0]
+    corrections = DiagramCorrectionSet(
+        symbol_overrides={first_symbol_id: SymbolOverride(sequence_index=999)}
+    )
+    result = compile_svg_diagram(document, corrections)
+    assert result.document.rounds[0].symbol_ids[-1] == first_symbol_id
+
+
 def test_reset_all_corrections_reproduces_automatic_result():
     document = _unclassified_document()
     result_with_none = compile_svg_diagram(document, DiagramCorrectionSet())

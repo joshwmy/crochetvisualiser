@@ -47,7 +47,7 @@ a correction is never re-scored against the automatic confidence scale.
 |---|---|
 | `stitch_type` | Reclassifies the symbol. |
 | `round_index` | Explicit round assignment (also feeds round clustering on the next inference pass — see below). |
-| `sequence_index` | Recorded on the symbol for display/audit; **not yet applied** to the compiled working order beyond what `round_start` already achieves — see `docs/known-limitations.md`. |
+| `sequence_index` | Desired 0-based working-order position **within the symbol's own round** (after any `round_index` override) — applied as a bounded reinsertion into that round's already-inferred angular order (`topology._apply_sequence_pins`). Out-of-range values clamp to the round's valid index range rather than erroring. Does not move a symbol across rounds — that's `round_index`'s job. |
 | `ignored` | Excludes the symbol entirely from the compiled graph (it is dropped from the corrected symbol list, not just marked). |
 | `round_start` | Marks/unmarks this symbol as the round's starting stitch — rotates that round's angular order. |
 | `round_closure` | Marks/unmarks this symbol as an explicit round-closure marker. |
@@ -67,12 +67,32 @@ Referencing an unknown `symbol_id`/parent/child id produces a
 `MANUAL_CORRECTION_CONFLICT` diagnostic (error, blocking) rather than being
 silently ignored.
 
+The frontend exposes these through the relationship-selection panel:
+clicking a relationship line/list entry selects it; `set_parent`/
+`add_parent` use whichever symbol is currently *also* selected (symbol and
+relationship selection are independent, not mutually exclusive, precisely
+so both can be picked at once); `remove_parent` removes exactly the
+relationship's currently-shown parent set; `confirm`/`restore_automatic`
+need no second selection. Only `parent_attachment`/`centre_attachment`
+relationships are correctable this way — `horizontal_neighbor`/
+`round_closure`/`yarn_sequence` are structural bookkeeping, not
+parent edges, so the panel disables the correction buttons for them.
+
 ## `ConstructionOverrides`
 
 `centre`, `direction`, `start_symbol_id`, `round_tolerance` — any set field
 feeds back into a full re-run of `topology.infer_topology` (see below),
 since changing the centre or direction can invalidate round clustering and
 ordering entirely; there is no cheaper partial-update path for these.
+
+The frontend's "Reverse round direction" and "Apply chart settings"
+controls both **merge** into the existing `construction_overrides` object
+(read-modify-write against `state.corrections.construction_overrides`)
+rather than replacing it outright — an earlier version of the reverse-
+direction handler replaced the whole object with `{ direction: ... }`,
+which silently discarded any previously-set centre/start/tolerance
+override the moment direction was toggled. Fixed alongside adding the
+chart-construction panel.
 
 ## Deterministic application order
 
@@ -139,8 +159,10 @@ owns the correction-mutation methods
 (`setSymbolOverride`/`addRelationshipOverride`/`setConstructionOverride`/
 `resetCorrections`) and the analyse/compile network round-trip;
 `viewer/src/main.ts`'s `wireDiagramWorkflow` wires the DOM (symbol list,
-correction form, confidence legend, pan/zoom-free preview, compile/return-
-to-review buttons) to that controller. A failed compile never touches the
+relationship selection/correction panel, correction form, confidence
+legend, pan/zoom/fit-to-view preview, round-visibility filter, chart-level
+construction controls, compile/return-to-review buttons) to that
+controller. A failed compile never touches the
 existing 3D viewer (`App.loadGeometryDocument` is only called after a
 successful compile response) — the previous valid model, if any, stays
 exactly as it was; see `viewer/tests/diagram_controller.test.ts`'s

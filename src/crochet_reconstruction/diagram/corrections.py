@@ -43,6 +43,12 @@ class SymbolOverride(BaseModel):
     stitch_type: DiagramStitchType | None = None
     round_index: int | None = None
     sequence_index: int | None = None
+    """Desired 0-based working-order position *within the symbol's own
+    round* (after any ``round_index`` override) — not a global ordinal.
+    Applied as a bounded reinsertion into the round's already-inferred
+    angular order (see ``topology._apply_sequence_pins``); does not move a
+    symbol across rounds and clamps out-of-range values to the round's
+    valid index range."""
     ignored: bool | None = None
     round_start: bool | None = None
     round_closure: bool | None = None

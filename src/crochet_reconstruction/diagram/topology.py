@@ -180,8 +180,40 @@ def _cluster_rounds(
         next_round += 1
 
 
+def _apply_sequence_pins(
+    ordered: list[_MutableSymbol], pins: dict[str, int]
+) -> list[_MutableSymbol]:
+    """Reinsert any pinned symbol at its corrected 0-based position within
+    this round's already-computed order, clamped to the valid range.
+
+    This is the bounded, deterministic sequence-index correction: a pin only
+    ever moves a symbol *within* the round it was already assigned to (round
+    membership itself is governed by ``round_index``/``explicit_round``, a
+    separate correction) — it never invents a global, gap-tolerant ordinal.
+    Multiple pins in the same round are applied in ascending target-index
+    order so the result does not depend on symbol-id iteration order
+    (idempotent/deterministic — see corrections.py's module docstring).
+    """
+    round_pins = {sid: idx for sid, idx in pins.items() if any(s.symbol_id == sid for s in ordered)}
+    if not round_pins:
+        return ordered
+
+    result = [s for s in ordered if s.symbol_id not in round_pins]
+    pinned_symbols = sorted(
+        (s for s in ordered if s.symbol_id in round_pins), key=lambda s: round_pins[s.symbol_id]
+    )
+    for symbol in pinned_symbols:
+        target = max(0, min(round_pins[symbol.symbol_id], len(result)))
+        result.insert(target, symbol)
+    return result
+
+
 def _order_round(
-    symbols: list[_MutableSymbol], centre: Vec2, direction: str, start_symbol_id: str | None
+    symbols: list[_MutableSymbol],
+    centre: Vec2,
+    direction: str,
+    start_symbol_id: str | None,
+    sequence_pins: dict[str, int] | None = None,
 ) -> list[_MutableSymbol]:
     for s in symbols:
         s.angle = math.atan2(s.position[1] - centre[1], s.position[0] - centre[0])
@@ -195,6 +227,9 @@ def _order_round(
         if start_id in ids:
             offset = ids.index(start_id)
             ordered = ordered[offset:] + ordered[:offset]
+
+    if sequence_pins:
+        ordered = _apply_sequence_pins(ordered, sequence_pins)
     return ordered
 
 
@@ -257,13 +292,18 @@ def infer_topology(
     limits: SafetyLimits,
     *,
     explicit_parent_overrides: dict[str, list[str]] | None = None,
+    sequence_pins: dict[str, int] | None = None,
 ) -> TopologyResult:
     """``explicit_parent_overrides`` lets a corrected re-run (``pipeline.py``'s
     compile path, which has no raw SVG/connector geometry — only the
     previously analysed ``DiagramDocument``) re-supply connector-derived
     parent bindings from the original analysis without needing that raw
     geometry again. Analyse-time callers pass ``connectors`` instead and
-    leave this ``None``."""
+    leave this ``None``.
+
+    ``sequence_pins`` (``symbol_id -> desired 0-based index within its own
+    round``) carries manual sequence-index corrections into round ordering
+    — see ``_apply_sequence_pins`` for the exact, bounded semantics."""
     diagnostics: list[DiagramDiagnostic] = []
 
     mutable = [
@@ -313,7 +353,9 @@ def infer_topology(
             s for s in relevant if s.round_index == round_number and is_worked_stitch(s.stitch_type)
         ]
         start_id = construction.start_symbol_id if round_number == round_numbers[0] else None
-        ordered_by_round[round_number] = _order_round(members, centre, direction, start_id)
+        ordered_by_round[round_number] = _order_round(
+            members, centre, direction, start_id, sequence_pins
+        )
 
     total_stitches = sum(len(v) for v in ordered_by_round.values())
     if total_stitches > limits.max_inferred_stitches:

@@ -86,6 +86,20 @@ def test_rejects_dtd_declaration():
     assert diags[0].code == DiagramDiagnosticCode.UNSAFE_SVG_CONTENT
 
 
+def test_rejects_data_html_url():
+    # Exercises the value-substring check (security.py's
+    # DISALLOWED_VALUE_SUBSTRINGS), not the disallowed-tag check that
+    # test_rejects_remote_image already covers for <image> itself.
+    doc, diags = parse_svg(
+        _wrap(
+            '<a style="background:data:text/html,&lt;script&gt;1&lt;/script&gt;"><circle r="5"/></a>'
+        ),
+        DEFAULT_LIMITS,
+    )
+    assert doc is None
+    assert diags[0].code == DiagramDiagnosticCode.UNSAFE_SVG_CONTENT
+
+
 def test_rejects_animation_elements():
     doc, diags = parse_svg(
         _wrap('<circle r="5"><animate attributeName="r" to="10"/></circle>'), DEFAULT_LIMITS

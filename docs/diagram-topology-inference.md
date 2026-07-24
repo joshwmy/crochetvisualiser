@@ -92,6 +92,16 @@ number, or every real round would be off by one.
   `ConstructionOverrides.start_symbol_id` for round 1 specifically)
   rotates the already-angle-sorted list so that symbol is first — it does
   not change the angular order itself, only where the sequence begins.
+- **Sequence-index correction (`_apply_sequence_pins`)**: applied last,
+  after angle-sorting and start-rotation. A `SymbolOverride.sequence_index`
+  is a desired 0-based position *within this already-computed round order*
+  — the function removes the pinned symbol(s) and reinserts them at their
+  target index (clamped to the round's valid range), in ascending
+  target-index order when multiple pins land in the same round (so the
+  result never depends on correction-dict iteration order). This never
+  moves a symbol to a different round — round membership is decided
+  earlier, by `_cluster_rounds`/`explicit_round`, and is untouched here.
+  See `docs/diagram-corrections.md` for the correction-model side of this.
 
 ## Parent attachment (`_distribute`, `_resolve_connectors`)
 
