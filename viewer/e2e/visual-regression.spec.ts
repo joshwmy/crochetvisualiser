@@ -306,3 +306,102 @@ test.describe("visual regression: scientific viewer", () => {
     await expect(page.locator("#viewport")).toHaveScreenshot("point-measurement.png", SCREENSHOT_OPTIONS);
   });
 });
+
+/**
+ * Diagram-mode visual regression. Unlike the suite above, this one has no
+ * shortcut equivalent to `loadGeometryDocument` — diagram analysis/topology
+ * inference is server-side — so each test goes through the real backend
+ * (the same `webServer`-managed uvicorn process every other e2e spec uses,
+ * not a second one). The 2D-preview screenshots are inherently more stable
+ * than the 3D ones above: `#diagram-preview` is a plain, fully
+ * client-rendered SVG with no WebGL/anti-aliasing variance, so no
+ * `maxDiffPixelRatio` slack is needed for those two.
+ *
+ * Bounded scope (see docs/svg-diagram-milestone-audit.md's
+ * "Visual-regression baselines" section for the full reasoning): this
+ * covers the 2D review view, a corrected-symbol state, and one
+ * diagram-derived 3D render — not the full nine-scenario list from the
+ * original ask. A dedicated "security-error state" screenshot was skipped
+ * since that state has no distinct visual surface beyond the diagnostics
+ * list diagram-workflow.spec.ts already asserts on by text.
+ */
+test.describe("visual regression: SVG diagram", () => {
+  const RING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+<g id="ring" data-stitch-type="magic_ring" transform="translate(200,200)"><circle r="8"/></g>
+<g data-stitch-type="single_crochet" transform="translate(230,200)"></g>
+<g data-stitch-type="single_crochet" transform="translate(215,226.02)"></g>
+<g data-stitch-type="single_crochet" transform="translate(185,226.02)"></g>
+<g data-stitch-type="single_crochet" transform="translate(170,200)"></g>
+<g data-stitch-type="single_crochet" transform="translate(185,173.98)"></g>
+<rect id="mystery" x="209" y="167.98" width="12" height="12"/>
+</svg>`;
+
+  async function analyseRing(page: Page): Promise<void> {
+    await page.click('#input-mode-tabs button[data-mode="diagram"]');
+    await page.fill("#diagram-source", RING_SVG);
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/visualizer/diagram/analyse") && r.request().method() === "POST",
+        { timeout: 45_000 },
+      ),
+      page.click("#diagram-analyse-button"),
+    ]);
+    await expect(page.locator("#diagram-status")).toHaveText("Analysed.", { timeout: 45_000 });
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await page.waitForFunction(() => Boolean((window as unknown as { __app?: unknown }).__app));
+  });
+
+  test("analysed flat-circle diagram, 2D review", async ({ page }) => {
+    await analyseRing(page);
+    await expect(page.locator("#diagram-preview")).toHaveScreenshot("diagram-2d-review.png", {
+      timeout: 20_000,
+    });
+  });
+
+  test("corrected ambiguous symbol shown with manual-correction colour", async ({ page }) => {
+    await analyseRing(page);
+    await page.locator("#diagram-symbol-list button", { hasText: "unclassified" }).click();
+    await page.selectOption("#diagram-stitch-type-select", "single_crochet");
+    await page.click("#diagram-apply-correction");
+    await page.waitForTimeout(150);
+    await expect(page.locator("#diagram-preview")).toHaveScreenshot("diagram-2d-corrected-symbol.png", {
+      timeout: 20_000,
+    });
+  });
+
+  test("diagram-derived 3D structural model, selected stitch", async ({ page }) => {
+    await analyseRing(page);
+    await page.locator("#diagram-symbol-list button", { hasText: "unclassified" }).click();
+    await page.selectOption("#diagram-stitch-type-select", "single_crochet");
+    await page.click("#diagram-apply-correction");
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/visualizer/diagram/compile") && r.request().method() === "POST",
+        { timeout: 45_000 },
+      ),
+      page.click("#diagram-compile-button"),
+    ]);
+    await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: 45_000 });
+    await page.selectOption("#quality-select", "low");
+    await page.evaluate(() => {
+      const app = (window as unknown as { __app: { setViewPreset(p: string): void } }).__app;
+      app.setViewPreset("front");
+    });
+    await page.evaluate(() => {
+      const win = window as unknown as {
+        __app: {
+          getDoc(): { stitches: { stitch_id: string }[] };
+          getStore(): { set(patch: Record<string, unknown>): void };
+        };
+      };
+      const firstStitchId = win.__app.getDoc().stitches[0].stitch_id;
+      win.__app.getStore().set({ selectedStitchId: firstStitchId });
+    });
+    await page.waitForTimeout(300);
+    await expect(page.locator("#viewport")).toHaveScreenshot("diagram-3d-selected-stitch.png", SCREENSHOT_OPTIONS);
+  });
+});
