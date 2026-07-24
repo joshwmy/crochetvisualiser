@@ -22,6 +22,14 @@ const AMBIGUOUS_MAGIC_RING_6SC = MAGIC_RING_6SC.replace(
 
 const MALICIOUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script></svg>`;
 
+// 45s, not 15s: this dev machine (see docs/known-limitations.md) has been
+// observed with well under 1GB free physical memory even at idle, and a
+// real backend analyse/compile round trip under that pressure has been
+// observed to exceed 15s — not a hang, just genuinely slow under memory
+// pressure. No deterministic readiness signal shortens this: the wait is
+// for the response itself.
+const BACKEND_ROUND_TRIP_TIMEOUT = 45_000;
+
 async function switchToDiagramMode(page: Page): Promise<void> {
   await page.click('#input-mode-tabs button[data-mode="diagram"]');
   await expect(page.locator("#diagram-panel")).toBeVisible();
@@ -32,12 +40,12 @@ async function analyse(page: Page, svgSource: string): Promise<void> {
   const [response] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/api/visualizer/diagram/analyse") && r.request().method() === "POST",
-      { timeout: 15_000 },
+      { timeout: BACKEND_ROUND_TRIP_TIMEOUT },
     ),
     page.click("#diagram-analyse-button"),
   ]);
   expect(response.status()).toBe(200);
-  await expect(page.locator("#diagram-status")).toHaveText("Analysed.", { timeout: 15_000 });
+  await expect(page.locator("#diagram-status")).toHaveText("Analysed.", { timeout: BACKEND_ROUND_TRIP_TIMEOUT });
 }
 
 test.describe("SVG diagram ingestion workflow", () => {
@@ -62,12 +70,12 @@ test.describe("SVG diagram ingestion workflow", () => {
     const [compileResponse] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/visualizer/diagram/compile") && r.request().method() === "POST",
-        { timeout: 15_000 },
+        { timeout: BACKEND_ROUND_TRIP_TIMEOUT },
       ),
       page.click("#diagram-compile-button"),
     ]);
     expect(compileResponse.status()).toBe(200);
-    await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: 15_000 });
+    await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: BACKEND_ROUND_TRIP_TIMEOUT });
 
     const stitchCount = await page.evaluate(
       () => (window as unknown as { __app: { getDoc(): { stitches: unknown[] } } }).__app.getDoc().stitches.length,
@@ -107,12 +115,12 @@ test.describe("SVG diagram ingestion workflow", () => {
     const [compileResponse] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/visualizer/diagram/compile") && r.request().method() === "POST",
-        { timeout: 15_000 },
+        { timeout: BACKEND_ROUND_TRIP_TIMEOUT },
       ),
       page.click("#diagram-compile-button"),
     ]);
     expect(compileResponse.status()).toBe(200);
-    await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: 15_000 });
+    await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: BACKEND_ROUND_TRIP_TIMEOUT });
 
     const beforeCount = await page.evaluate(
       () => (window as unknown as { __app: { getDoc(): { stitches: unknown[] } } }).__app.getDoc().stitches.length,
@@ -127,7 +135,7 @@ test.describe("SVG diagram ingestion workflow", () => {
     const [analyseResponse] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/visualizer/diagram/analyse") && r.request().method() === "POST",
-        { timeout: 15_000 },
+        { timeout: BACKEND_ROUND_TRIP_TIMEOUT },
       ),
       page.click("#diagram-analyse-button"),
     ]);

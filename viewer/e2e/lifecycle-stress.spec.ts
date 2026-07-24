@@ -9,17 +9,25 @@ import { test, expect, type Page } from "@playwright/test";
 const PATTERN_A = `Round 1: 6 sc in magic ring [6]\nRound 2: sc around [6]\n`;
 const PATTERN_B = `Round 1: 8 sc in magic ring [8]\nRound 2: sc around [8]\n`;
 
+// 45s, not 15s: this dev machine (see docs/known-limitations.md) has been
+// observed with well under 1GB free physical memory even at idle, and a
+// real backend compile round trip under that pressure has been observed to
+// exceed 15s — not a hang, just genuinely slow under memory pressure. No
+// deterministic readiness signal shortens this: the wait is for the
+// response itself.
+const BACKEND_ROUND_TRIP_TIMEOUT = 45_000;
+
 async function compile(page: Page, source: string): Promise<void> {
   await page.fill("#pattern-source", source);
   const [response] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("/api/visualizer/compile") && r.request().method() === "POST",
-      { timeout: 15_000 },
+      { timeout: BACKEND_ROUND_TRIP_TIMEOUT },
     ),
     page.click("#compile-button"),
   ]);
   expect(response.status()).toBe(200);
-  await expect(page.locator("#compile-status")).not.toHaveText("Compiling…", { timeout: 15_000 });
+  await expect(page.locator("#compile-status")).not.toHaveText("Compiling…", { timeout: BACKEND_ROUND_TRIP_TIMEOUT });
   await expect(page.locator("#compile-status")).toHaveText(/Compiled successfully/);
 }
 
