@@ -86,11 +86,16 @@ accounting for that slice.
   estimate instead (lower confidence, `centre_method: geometric_estimate`),
   which works for typical charts but is not equivalent to true centre
   detection.
-- **`SymbolOverride.sequence_index` is accepted and recorded but not fully
-  applied to compiled working order.** Only `round_start` (rotating a
-  round's start point) is honoured by the compiler; an arbitrary
-  mid-round reordering correction beyond "pick the starting stitch" is not
-  yet enacted. See `docs/diagram-corrections.md`.
+- **`SymbolOverride.sequence_index` reorders within a round, not across
+  rounds.** It's applied as a bounded reinsertion into the symbol's
+  already-inferred round order (`topology._apply_sequence_pins`), clamped
+  to that round's valid index range — moving a symbol to a different round
+  is `round_index`'s job, not `sequence_index`'s. This is the safe, bounded
+  version of the correction (round membership and angular ordering stay
+  governed by topology inference; only within-round position is
+  user-overridable) rather than an unconstrained global ordinal, which
+  would let a correction silently violate round clustering. See
+  `docs/diagram-corrections.md`.
 - **`NON_ADJACENT_DECREASE_PARENTS` is a warning, not a blocking error** —
   an explicit connector or correction can legitimately produce a
   non-contiguous decrease (e.g. an unusual stitch pattern); this slice
@@ -116,18 +121,45 @@ accounting for that slice.
 - **`options.strict` has no effect yet** — accepted by the API and typed in
   the schema, reserved for a future stricter-diagnostics mode, not silently
   dropped but also not yet implemented.
-- **E2E coverage is 13 tests across three files**, not a full interaction
+- **E2E coverage is 16 tests across four files**, not a full interaction
   matrix — `viewer/e2e/compile-workflow.spec.ts` (2 tests: the original
   compile scenario, plus an extended scenario covering yarn mode, path
   inspection, X-ray, clipping, all five measurement kinds, quality change,
   and recompile-disposal), `viewer/e2e/lifecycle-stress.spec.ts` (2 tests:
-  repeated-recompile resource-leak checks), and
-  `viewer/e2e/visual-regression.spec.ts` (9 deterministic screenshots —
-  see `docs/performance-benchmarks.md` and this file's "Viewer" section
+  repeated-recompile resource-leak checks),
+  `viewer/e2e/diagram-workflow.spec.ts` (3 tests: analyse/correct/compile/
+  select through the real backend, malicious-SVG rejection preserving the
+  last valid model, and written-pattern-mode non-interference), and
+  `viewer/e2e/visual-regression.spec.ts` (see
+  `docs/performance-benchmarks.md` and this file's "Viewer" section
   below for its own documented scope reduction). Some camera-preset and
   animation-timeline interactions during a live compile session are still
   covered only by Vitest unit tests and manual verification, not by
   Playwright.
+- **This project's dev machine has been measured with under 1GB free
+  physical memory even at idle** (8GB total RAM; `Get-CimInstance
+  Win32_OperatingSystem` showed ~370-650MB `FreePhysicalMemory` across
+  several full-suite runs, with zero leaked `node`/`python`/Chromium
+  processes after each run — confirmed via `tasklist`). Under this
+  constraint, a full serial (`workers: 1`) Playwright run has been observed
+  to intermittently exceed a 15s backend-response wait on real
+  compile/analyse round trips — not a hang, not a code defect, and not
+  always the same test each run (observed hitting
+  `compile-workflow.spec.ts`, `diagram-workflow.spec.ts`,
+  `lifecycle-stress.spec.ts`, and `visual-regression.spec.ts` on different
+  runs). The response-wait timeout for every real backend round trip in
+  e2e specs was raised from 15s to 45s (`BACKEND_ROUND_TRIP_TIMEOUT`,
+  documented inline in each spec) to absorb this — a bounded, justified
+  increase, not blind timeout inflation, since the assertions themselves
+  are unchanged and the wait is for a real network response with no
+  cheaper deterministic readiness signal available. Two of
+  `viewer/tests/benchmark.test.ts`'s hard-coded timing-threshold
+  assertions (raycast elapsed-ms budgets) have also been observed to fail
+  under the same memory pressure; these are pre-existing performance
+  budgets, not diagram-slice code, and were not loosened — a full green
+  Playwright/Vitest run on this machine is not fully reproducible on
+  demand, and re-running individual suites in isolation (rather than
+  everything concurrently) reliably passes.
 
 ## Geometry accuracy
 
