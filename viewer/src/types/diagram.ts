@@ -24,6 +24,7 @@ export type ClassificationMethod =
   | "css_class"
   | "title"
   | "aria_label"
+  | "text_label"
   | "primitive_geometry"
   | "manual_override"
   | "unclassified";

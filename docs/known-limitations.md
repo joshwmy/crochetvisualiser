@@ -68,10 +68,20 @@ accounting for that slice.
   `is_worked_stitch()` and simply doesn't appear in the compiled graph —
   no diagnostic currently flags this specific case, since it's outside the
   bounded circular-chart profile this slice targets.
-- **Text-label association (classification priority #7) is not
-  implemented.** A chart relying on a free-standing `<text>` label near a
-  symbol, with no `data-*`/`id`/`class`/`title`/`aria-label` metadata,
-  falls through to the geometry heuristic or ends up unclassified.
+- **Text-label association is implemented, but deliberately conservative.**
+  A free-standing `<text>` naming a stitch type now classifies the symbol it
+  is unambiguously nearest to (`diagram/text_labels.py`,
+  `docs/diagram-symbol-ontology.md`). It only fires when the label is within
+  1.5 symbol-diagonals *and* symbol and label are mutually nearest by a 1.5×
+  margin — a label sitting midway between two symbols classifies neither,
+  and every rejection falls through to the geometry heuristic or to
+  unclassified rather than guessing. Charts whose labels sit further away
+  than that, or in a dense layout where several labels compete, still get
+  unclassified symbols requiring a correction.
+- **A chart's own printed round labels are still not parsed.** Text that
+  doesn't name a stitch type (`3`, `18 sts`, `Round 4`) is ignored by the
+  association above rather than used to seed or validate round numbering —
+  see the separate bullet on `data-round` metadata below.
 - **Primitive-geometry classification is calibrated to this project's own
   synthetic fixture convention** (symbols authored on roughly a
   10-local-unit box), not a general shape recognizer — a chart using

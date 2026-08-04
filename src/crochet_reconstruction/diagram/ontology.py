@@ -139,6 +139,7 @@ class ClassificationMethod(StrEnum):
     CSS_CLASS = "css_class"
     TITLE = "title"
     ARIA_LABEL = "aria_label"
+    TEXT_LABEL = "text_label"
     PRIMITIVE_GEOMETRY = "primitive_geometry"
     MANUAL_OVERRIDE = "manual_override"
     UNCLASSIFIED = "unclassified"
@@ -152,6 +153,13 @@ CONFIDENCE_BY_METHOD: dict[ClassificationMethod, float] = {
     ClassificationMethod.CSS_CLASS: 0.8,
     ClassificationMethod.TITLE: 0.75,
     ClassificationMethod.ARIA_LABEL: 0.7,
+    # Same score as aria_label and primitive_geometry, for opposing reasons
+    # that cancel: the label's *content* is explicit (unlike a shape guess),
+    # but its *attachment* to a symbol is inferred from position (unlike any
+    # declared method). It outranks primitive_geometry in priority — content
+    # beats shape when both are available — without claiming to be more
+    # certain than the weakest declared method. See diagram/text_labels.py.
+    ClassificationMethod.TEXT_LABEL: 0.7,
     ClassificationMethod.PRIMITIVE_GEOMETRY: 0.7,
     ClassificationMethod.UNCLASSIFIED: 0.0,
 }

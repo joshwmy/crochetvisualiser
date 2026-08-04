@@ -10,11 +10,16 @@ Priority order, highest first (see ``ontology.ClassificationMethod``):
 4. the element's own supported CSS class
 5. ``<title>`` child text
 6. ``aria-label`` attribute
-7. text-label association — **not implemented this slice** (documented
-   simplification; falls through to geometry, see
-   ``docs/diagram-symbol-ontology.md``)
+7. text-label association (``text_labels.py``) — a free-standing ``<text>``
+   naming a stitch type, unambiguously nearest to this candidate
 8. primitive geometry heuristic (``classification.py``)
 9. unclassified
+
+Extraction runs in two phases because of #7: a text label's owner can only
+be decided once *every* candidate's position is known (the label must be
+mutually nearest — see ``text_labels.py``), so the walk collects candidates
+in document order and a second pass resolves and emits them. Symbols are
+still emitted in document order, so ``symbol_id`` numbering is unchanged.
 
 Containers (``<defs>``/``<symbol>``) are never scanned directly — their
 content is only a candidate once instantiated via ``<use>`` (see
@@ -47,6 +52,12 @@ from crochet_reconstruction.diagram.ontology import (
 )
 from crochet_reconstruction.diagram.security import SafetyLimits
 from crochet_reconstruction.diagram.svg_parser import NormalizedElement
+from crochet_reconstruction.diagram.text_labels import (
+    LabelCandidate,
+    TextLabel,
+    associate_text_labels,
+    collect_text_labels,
+)
 
 Vec2 = tuple[float, float]
 BBox = tuple[float, float, float, float]
@@ -69,6 +80,23 @@ class ExtractionResult:
     symbols: list[DiagramSymbol] = field(default_factory=list)
     connectors: list[RawConnector] = field(default_factory=list)
     diagnostics: list[DiagramDiagnostic] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _PendingCandidate:
+    """A discovered candidate, before its final classification is decided.
+
+    Metadata classification is resolved during the walk (it depends only on
+    the element itself). Geometry classification is *computed* during the walk
+    too — the walk's recursion decision depends on whether a shape was
+    recognised — but which method finally wins is decided in phase two, once
+    text-label association can see every candidate's position.
+    """
+
+    element: NormalizedElement
+    metadata: tuple[ClassificationMethod, str | None, str] | None
+    geometry: PrimitiveClassification | None
+    """``None`` for a candidate the walk did not treat as a leaf shape."""
 
 
 def _is_connector(attrib: dict[str, str]) -> bool:
@@ -293,14 +321,16 @@ def _walk_for_candidates(
     element: NormalizedElement,
     *,
     result: ExtractionResult,
-    limits: SafetyLimits,
-    counter: list[int],
-    seen_ids: dict[str, str],
+    pending: list[_PendingCandidate],
 ) -> None:
     if element.tag in _SKIPPED_CONTAINERS:
         return
     if element.tag == "text":
-        return  # round labels / free text: not treated as symbols this slice
+        # Never a symbol candidate itself. A <text> naming a stitch type is
+        # gathered separately by text_labels.collect_text_labels and used to
+        # classify a *nearby* symbol; round numbers and stitch counts resolve
+        # to nothing and are ignored.
+        return
 
     if _is_connector(element.attrib):
         points = _geometry_points(element)
@@ -326,18 +356,7 @@ def _walk_for_candidates(
 
     metadata_match = _try_metadata_classification(element)
     if metadata_match is not None:
-        method, stitch_type_value, raw_evidence = metadata_match
-        _emit_symbol(
-            element,
-            result=result,
-            limits=limits,
-            counter=counter,
-            seen_ids=seen_ids,
-            method=method,
-            stitch_type_value=stitch_type_value,
-            candidates=[stitch_type_value] if stitch_type_value else [],
-            raw_evidence=raw_evidence,
-        )
+        pending.append(_PendingCandidate(element=element, metadata=metadata_match, geometry=None))
         return
 
     if element.tag in _PRIMITIVE_TAGS or (element.tag in ("g", "use") and element.children):
@@ -347,39 +366,14 @@ def _walk_for_candidates(
             and all(child.tag in _PRIMITIVE_TAGS for child in element.children)
             and element.children
         )
-        if is_leaf_shape and classification.candidates:
-            _emit_symbol(
-                element,
-                result=result,
-                limits=limits,
-                counter=counter,
-                seen_ids=seen_ids,
-                method=ClassificationMethod.PRIMITIVE_GEOMETRY,
-                stitch_type_value=classification.candidates[0].value
-                if len(classification.candidates) == 1
-                else None,
-                candidates=[c.value for c in classification.candidates],
-                raw_evidence=None,
-            )
-            return
-        if is_leaf_shape and element.tag in _PRIMITIVE_TAGS:
-            _emit_symbol(
-                element,
-                result=result,
-                limits=limits,
-                counter=counter,
-                seen_ids=seen_ids,
-                method=ClassificationMethod.UNCLASSIFIED,
-                stitch_type_value=None,
-                candidates=[],
-                raw_evidence=None,
+        if is_leaf_shape and (classification.candidates or element.tag in _PRIMITIVE_TAGS):
+            pending.append(
+                _PendingCandidate(element=element, metadata=None, geometry=classification)
             )
             return
 
     for child in element.children:
-        _walk_for_candidates(
-            child, result=result, limits=limits, counter=counter, seen_ids=seen_ids
-        )
+        _walk_for_candidates(child, result=result, pending=pending)
 
 
 def _emit_symbol(
@@ -492,12 +486,85 @@ def _emit_symbol(
         )
 
 
+def _resolve_pending(
+    candidate: _PendingCandidate, label: TextLabel | None
+) -> tuple[ClassificationMethod, str | None, list[str], str | None]:
+    """Final ``(method, stitch_type_value, candidates, raw_evidence)``.
+
+    Priority is applied here, in one place: declared metadata, then an
+    associated text label, then the geometry heuristic, then unclassified.
+    """
+    if candidate.metadata is not None:
+        method, stitch_type_value, raw_evidence = candidate.metadata
+        return (
+            method,
+            stitch_type_value,
+            [stitch_type_value] if stitch_type_value else [],
+            (raw_evidence),
+        )
+
+    if label is not None:
+        return (
+            ClassificationMethod.TEXT_LABEL,
+            label.stitch_type.value,
+            [label.stitch_type.value],
+            label.raw_text,
+        )
+
+    geometry = candidate.geometry
+    if geometry is not None and geometry.candidates:
+        return (
+            ClassificationMethod.PRIMITIVE_GEOMETRY,
+            geometry.candidates[0].value if len(geometry.candidates) == 1 else None,
+            [c.value for c in geometry.candidates],
+            None,
+        )
+
+    return ClassificationMethod.UNCLASSIFIED, None, [], None
+
+
 def extract_symbols(root: NormalizedElement, limits: SafetyLimits) -> ExtractionResult:
     result = ExtractionResult()
+    pending: list[_PendingCandidate] = []
+    for child in root.children:
+        _walk_for_candidates(child, result=result, pending=pending)
+
+    # Only candidates that declared metadata are ineligible for a text label:
+    # a label must never override a declared classification (priority order),
+    # and excluding them here also keeps them from absorbing a nearby label
+    # that a genuinely unlabelled neighbour needs.
+    eligible_indices = [i for i, c in enumerate(pending) if c.metadata is None]
+    associations: dict[int, TextLabel] = {}
+    if eligible_indices:
+        labels = collect_text_labels(root)
+        if labels:
+            label_candidates = []
+            for index in eligible_indices:
+                bbox_anchor = _bbox_and_anchor(pending[index].element)
+                if bbox_anchor is None:
+                    continue
+                bbox, anchor = bbox_anchor
+                label_candidates.append((index, LabelCandidate(anchor=anchor, bbox=bbox)))
+            resolved = associate_text_labels([c for _, c in label_candidates], labels)
+            associations = {
+                label_candidates[position][0]: label for position, label in resolved.items()
+            }
+
     counter = [0]
     seen_ids: dict[str, str] = {}
-    for child in root.children:
-        _walk_for_candidates(
-            child, result=result, limits=limits, counter=counter, seen_ids=seen_ids
+    for index, candidate in enumerate(pending):
+        method, stitch_type_value, candidates, raw_evidence = _resolve_pending(
+            candidate, associations.get(index)
+        )
+        _emit_symbol(
+            candidate.element,
+            result=result,
+            limits=limits,
+            counter=counter,
+            seen_ids=seen_ids,
+            method=method,
+            stitch_type_value=stitch_type_value,
+            candidates=candidates,
+            raw_evidence=raw_evidence,
         )
     return result

@@ -78,10 +78,9 @@ geometric heuristic override explicit metadata," applied strictly:
 4. `css_class` — any token in the element's `class` list.
 5. `title` — a `<title>` child element's text.
 6. `aria_label` — the `aria-label` attribute.
-7. *Text-label association* — **not implemented this slice** (a documented
-   simplification; a chart relying on a nearby free-standing `<text>`
-   label with no other metadata falls through to geometry classification
-   or ends up unclassified). See `docs/known-limitations.md`.
+7. `text_label` — a free-standing `<text>` element naming a stitch type,
+   unambiguously nearest to this candidate. See "Text-label association"
+   below.
 8. `primitive_geometry` — the bounded shape heuristic (below).
 9. `unclassified` — none of the above resolved.
 
@@ -92,6 +91,53 @@ untransformed definition, once per instance). Elements explicitly marked
 as connectors (`class="connector"` or `data-connector="true"`) are
 recognised separately and never treated as stitch symbols — see
 `docs/diagram-topology-inference.md`.
+
+## Text-label association (`text_labels.py`)
+
+A chart can name a symbol with a free-standing `<text>` sitting beside it
+("dc", "sc") instead of carrying metadata on the element. Nothing in the SVG
+says which symbol such a label belongs to, so the association is inferred
+from position — which is why this method ranks below every declared-metadata
+method and can never override one.
+
+It ranks *above* `primitive_geometry` because the label's **content** is
+explicit: "dc" written by the chart's author is a stronger statement about
+intent than counting strokes in the artwork. Only the attachment is inferred,
+not the meaning.
+
+Only text that resolves to a known stitch type (canonical name or alias,
+normalised) is considered a label at all. A chart's round numbers, stitch
+counts, and titles — `3`, `18 sts`, `Round 4` — resolve to nothing and are
+ignored rather than parsed. Using a chart's printed round labels to seed or
+validate round numbering remains a separate, unimplemented gap
+(`docs/known-limitations.md`).
+
+Two guards, both of which **fail closed** — a rejected association falls
+through to the geometry heuristic or to unclassified, exactly as before this
+method existed, and never produces a guessed classification:
+
+| Guard | Rule | Constant |
+|---|---|---|
+| Range | The label must be within N × the symbol's own bounding-box diagonal. Expressed relative to the symbol's own size, so it is independent of the chart's scale. | `MAX_DISTANCE_BBOX_DIAGONALS = 1.5` |
+| Mutual nearest | The symbol must be the label's nearest eligible candidate **and** the label the symbol's nearest eligible label, each beating the runner-up by this factor. A label midway between two symbols classifies neither. | `AMBIGUITY_SEPARATION_RATIO = 1.5` |
+
+A symbol with a degenerate zero-area bounding box can never be labelled —
+there is no size to scale the search radius against, and falling back to an
+absolute distance would make the rule depend on the chart's arbitrary scale.
+
+Neither constant is a crochet fact; both describe chart *layout*. Loosening
+them cannot silently turn an unclassified symbol into a wrong one — it would
+only widen which labels are considered, and the mutual-nearest rule still has
+to hold.
+
+Extraction therefore runs in two phases (`extraction.py`): the walk collects
+candidates in document order, then a second pass resolves classification once
+every candidate's position is known. Symbols are still emitted in document
+order, so `symbol_id` numbering is unaffected.
+
+Worked example: `tests/diagram/fixtures/svg/text_labelled.svg`, where six
+centred-cross symbols — which the geometry heuristic reads as
+`single_crochet` — are labelled "dc" and compile as `double_crochet`.
 
 ## Primitive geometry heuristic (`classification.py`)
 
@@ -139,7 +185,7 @@ probability, never displayed as one. `ontology.CONFIDENCE_BY_METHOD`:
 | `use_reference` | 0.9 |
 | `element_id` / `css_class` | 0.8 |
 | `title` | 0.75 |
-| `aria_label` / `primitive_geometry` | 0.7 |
+| `aria_label` / `text_label` / `primitive_geometry` | 0.7 |
 | `unclassified` | 0.0 |
 
 An ambiguous symbol (multiple plausible primitive-geometry candidates)

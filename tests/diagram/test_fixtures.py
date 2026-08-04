@@ -10,6 +10,7 @@ from __future__ import annotations
 from crochet_reconstruction.diagram.corrections import DiagramCorrectionSet, SymbolOverride
 from crochet_reconstruction.diagram.diagnostics import DiagramDiagnosticCode
 from crochet_reconstruction.diagram.pipeline import analyse_svg_diagram, compile_svg_diagram
+from crochet_reconstruction.domain.enums import StitchFamily
 from crochet_reconstruction.geometry.layout import build_geometry
 from crochet_reconstruction.graph.validation import validate_graph
 from crochet_reconstruction.parsing.written.semantic import DEFAULT_WRITTEN_PATTERN_GAUGE
@@ -72,6 +73,18 @@ def test_metadata_labelled(fixture_svg):
     assert len(result.compiled.graph.nodes) == 6
     methods = {s.classification_method.value for s in analysis.document.symbols}
     assert "css_class" in methods or "element_id" in methods
+
+
+def test_text_labelled(fixture_svg):
+    """Symbols carrying no metadata at all, named by adjacent <text> labels.
+    Their artwork is a centred cross, which the geometry heuristic would call
+    single_crochet — the "dc" labels must win (priority 7 over 8). See
+    tests/diagram/test_text_labels.py for the association rules themselves."""
+    analysis, result = _compile_ok(fixture_svg("text_labelled.svg"))
+    assert len(result.compiled.graph.nodes) == 6
+    methods = {s.classification_method.value for s in analysis.document.symbols}
+    assert "text_label" in methods
+    assert all(n.stitch_type is StitchFamily.DC for n in result.compiled.graph.nodes)
 
 
 def test_nested_transform(fixture_svg):
@@ -185,4 +198,4 @@ def test_every_fixture_is_exercised(fixture_svg):
 
     svg_dir = Path(__file__).parent / "fixtures" / "svg"
     fixture_files = sorted(p.name for p in svg_dir.glob("*.svg"))
-    assert len(fixture_files) == 18
+    assert len(fixture_files) == 19

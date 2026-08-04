@@ -44,9 +44,10 @@ This is a deliberately bounded first slice, not a general SVG-chart reader.
 - Symbols represented as any of: `<use href="#...">` references to symbol
   definitions; groups/elements with semantic ids or classes; elements with
   `data-*` metadata (`data-stitch-type`, `data-round`); elements with
-  `<title>` or `aria-label` accessible names; or, as a last resort, clean
-  vector primitives within the small supported shape vocabulary (see
-  `docs/diagram-symbol-ontology.md`).
+  `<title>` or `aria-label` accessible names; symbols named by an adjacent
+  free-standing `<text>` label ("dc", "sc") with no metadata of their own; or,
+  as a last resort, clean vector primitives within the small supported shape
+  vocabulary (see `docs/diagram-symbol-ontology.md`).
 - Nested `<g>` transforms, `<use>` with local `x`/`y` offsets, non-zero
   `viewBox` origins — all correctly normalised (`docs/diagram-ir-spec.md`
   covers the coordinate system; `transforms.py` implements it).
