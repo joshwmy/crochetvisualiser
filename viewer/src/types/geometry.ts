@@ -1,5 +1,9 @@
 // Mirrors src/crochet_reconstruction/geometry/models.py field-for-field.
 // The viewer must never guess a shape the Python schema doesn't declare.
+//
+// SUPPORTED_SCHEMA_VERSION is match-tested against GEOMETRY_SCHEMA_VERSION by
+// tests/test_frontend_type_mirror.py. The interface *fields* below are not
+// structurally checked — see that file's "what this does not cover".
 
 export type Vec3 = [number, number, number];
 export type Quat = [number, number, number, number];

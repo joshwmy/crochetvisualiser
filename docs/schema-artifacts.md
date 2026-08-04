@@ -33,6 +33,29 @@ Every schema file also carries a deterministic `$id`
 never-fetched identifier, not a real published URL) and
 `$schema: "https://json-schema.org/draft/2020-12/schema"`.
 
+## The frontend's hand-written mirror is match-tested too
+
+`viewer/src/types/diagram.ts` and `viewer/src/types/geometry.ts` are
+hand-written TypeScript mirrors of the Python schema, not generated from it.
+That is a real drift risk the committed JSON Schemas do not cover: adding a
+member to a Python enum (say, a new `ClassificationMethod`) leaves the
+frontend union silently *narrower* than the responses it will actually
+receive, and `tsc` cannot detect it because the mismatch is between two
+languages rather than within one.
+
+`tests/test_frontend_type_mirror.py` closes that by parsing the declarations
+out of the `.ts` sources and comparing them to the Python enums/`Literal`s:
+every named string union in `diagram.ts`, the inline unions on
+`DiagramConstruction`, and both `SUPPORTED_*_SCHEMA_VERSION` constants. It
+needs no Node toolchain, so it runs in the ordinary `pytest` pass.
+
+It deliberately does **not** check interface *fields* — whether
+`DiagramSymbol` has every field `ir.DiagramSymbol` does, with compatible
+types. A structural check at that level belongs in generated types rather
+than a regex, and claiming it here would overstate the guarantee. The test
+file lists its own gaps explicitly for that reason, and includes tests
+asserting the parser genuinely reads the files rather than passing vacuously.
+
 ## Frontend-only types are not included, on purpose
 
 `StitchPathResult` and `Measurement` (`viewer/src/geometry/stitch_paths/types.ts`,

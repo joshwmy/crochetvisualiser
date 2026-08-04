@@ -286,6 +286,9 @@ npm run e2e          # Playwright: compile workflow, SVG diagram workflow, lifec
 
 ```bash
 python -m crochet_reconstruction.api.schema_export   # regenerate schemas/*.schema.json after changing StitchGraph/GeometryDocument/CompileRequest/CompileResponse/Diagnostic/Diagram*
+
+pytest tests/test_schema_export.py          # committed schemas match the live models
+pytest tests/test_frontend_type_mirror.py   # viewer/src/types/*.ts unions match the Python enums
 ```
 
 ## Architecture summary

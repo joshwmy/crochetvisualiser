@@ -2,6 +2,11 @@
 // field-for-field. Deep domain payloads stay snake_case on the wire (see
 // api/diagram_schemas.py's module docstring) — only the thin request/
 // response wrapper shapes below use camelCase.
+//
+// The string unions and schema-version constants here are match-tested against
+// their Python sources by tests/test_frontend_type_mirror.py — adding a member
+// on either side without the other fails that test. tsc cannot catch this
+// drift, since it is between two languages rather than within one.
 
 export type Vec2 = [number, number];
 export type BBox = [number, number, number, number];
