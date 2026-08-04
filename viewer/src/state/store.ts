@@ -5,8 +5,10 @@
 import type { SegmentRole } from "../geometry/stitch_paths/types";
 import type { Vec3 } from "../types/geometry";
 import type { Measurement } from "../measurement/types";
+import type { Annotation, AnnotationAnchor } from "../annotations/types";
 
 export type { Measurement } from "../measurement/types";
+export type { Annotation } from "../annotations/types";
 
 export type ViewMode = "structural" | "yarn";
 export type QualityName = "low" | "medium" | "high";
@@ -47,6 +49,20 @@ export interface ViewerState {
    * clicks record arbitrary point-to-point measurements (raw raycast hit,
    * not snapped to a stitch). Only meaningful while measurementModeActive. */
   measurementPointMode: boolean;
+  annotations: Annotation[];
+  /** Anchor captured by the next click while annotation mode is active, held
+   * until the user supplies text and confirms. Separate from the measurement
+   * pending fields so a user can leave a half-started annotation and take a
+   * measurement without either clobbering the other. */
+  pendingAnnotationAnchor: AnnotationAnchor | null;
+  annotationModeActive: boolean;
+  /** false (default): clicks anchor an annotation to the clicked stitch.
+   * true: clicks anchor it to the raw raycast hit point instead. Only
+   * meaningful while annotationModeActive. Mirrors measurementPointMode. */
+  annotationPointMode: boolean;
+  /** Id of the annotation whose text is currently loaded into the editor, or
+   * null when the editor would create a new annotation instead. */
+  editingAnnotationId: string | null;
   /** Semantic stitch-path inspection mode (yarn-mode only) — see selection/path_inspection.ts. */
   pathModeActive: boolean;
   /** null means "highlight all roles"; a role narrows display to just that role. */
@@ -101,6 +117,11 @@ export function createInitialState(stitchCount: number, quality: QualityName = "
     pendingMeasurementPoint: null,
     measurementModeActive: false,
     measurementPointMode: false,
+    annotations: [],
+    pendingAnnotationAnchor: null,
+    annotationModeActive: false,
+    annotationPointMode: false,
+    editingAnnotationId: null,
     pathModeActive: false,
     pathFocusRole: null,
   };

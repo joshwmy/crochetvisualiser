@@ -7,6 +7,7 @@ import type { LightingPreset } from "./scene/scene";
 import type { ClippingState, QualityName, ViewerState } from "./state/store";
 import type { CompileState } from "./state/compile_store";
 import type { DiagramState } from "./state/diagram_store";
+import { describeAnchor, MAX_ANNOTATION_LENGTH } from "./annotations/annotations";
 import { AMIGURUMI_EXAMPLE } from "./examples";
 import { PATH_ROLE_LEGEND } from "./selection/path_inspection";
 import { GRAPH_OVERLAY_LEGEND } from "./selection/graph_overlay";
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   wireInspector(app);
   wirePathInspection(app);
   wireMeasurements(app);
+  wireAnnotations(app);
   wireResize(app);
   wireCompileWorkflow(app, controller);
   wireInputModeTabs();
@@ -497,6 +499,125 @@ function wireMeasurements(app: App): void {
         app.getStore().set({ measurements: current.measurements.filter((m) => m.id !== measurement.id) });
       });
       item.appendChild(label);
+      item.appendChild(removeButton);
+      list.appendChild(item);
+    }
+  });
+}
+
+function wireAnnotations(app: App): void {
+  const toggle = qs<HTMLInputElement>("annotation-mode-toggle");
+  const kindSelect = qs<HTMLSelectElement>("annotation-kind-select");
+  const status = qs<HTMLParagraphElement>("annotation-status");
+  const textInput = qs<HTMLInputElement>("annotation-text");
+  const remaining = qs<HTMLParagraphElement>("annotation-remaining");
+  const saveButton = qs<HTMLButtonElement>("annotation-save");
+  const cancelEditButton = qs<HTMLButtonElement>("annotation-cancel-edit");
+  const list = qs<HTMLUListElement>("annotation-list");
+
+  const measurementToggle = qs<HTMLInputElement>("measurement-mode-toggle");
+
+  toggle.addEventListener("change", () => {
+    // Annotation and measurement mode both claim the click; keeping them
+    // mutually exclusive in the UI means a click never has two meanings.
+    if (toggle.checked && measurementToggle.checked) {
+      measurementToggle.checked = false;
+      app.getStore().set({
+        measurementModeActive: false,
+        pendingMeasurementStitchId: null,
+        pendingMeasurementPoint: null,
+      });
+    }
+    app.getStore().set({
+      annotationModeActive: toggle.checked,
+      pendingAnnotationAnchor: null,
+    });
+  });
+
+  measurementToggle.addEventListener("change", () => {
+    if (measurementToggle.checked && toggle.checked) {
+      toggle.checked = false;
+      app.getStore().set({ annotationModeActive: false, pendingAnnotationAnchor: null });
+    }
+  });
+
+  kindSelect.addEventListener("change", () => {
+    app.getStore().set({
+      annotationPointMode: kindSelect.value === "point",
+      pendingAnnotationAnchor: null,
+    });
+  });
+
+  textInput.addEventListener("input", () => {
+    remaining.textContent = `${MAX_ANNOTATION_LENGTH - textInput.value.length} characters remaining`;
+  });
+
+  const commit = (): void => {
+    const editingId = app.getStore().get().editingAnnotationId;
+    const succeeded = editingId
+      ? app.editAnnotationText(editingId, textInput.value)
+      : app.addAnnotationFromPending(textInput.value);
+    if (succeeded) {
+      textInput.value = "";
+      remaining.textContent = "";
+    }
+  };
+
+  saveButton.addEventListener("click", commit);
+  textInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") commit();
+  });
+
+  cancelEditButton.addEventListener("click", () => {
+    app.getStore().set({ editingAnnotationId: null });
+    textInput.value = "";
+    remaining.textContent = "";
+  });
+
+  app.getStore().subscribe((state) => {
+    const editing = state.editingAnnotationId !== null;
+    saveButton.textContent = editing ? "Save annotation" : "Add annotation";
+    saveButton.disabled = !editing && state.pendingAnnotationAnchor === null;
+    cancelEditButton.disabled = !editing;
+
+    if (editing) {
+      status.textContent = "Editing an existing annotation's text.";
+    } else if (!state.annotationModeActive) {
+      status.textContent = "";
+    } else if (state.pendingAnnotationAnchor === null) {
+      status.textContent = state.annotationPointMode
+        ? "Click a point on the model to anchor an annotation."
+        : "Click a stitch to anchor an annotation.";
+    } else {
+      status.textContent = `Anchor set (${describeAnchor(state.pendingAnnotationAnchor)}). Enter text, then add it.`;
+    }
+
+    list.innerHTML = "";
+    for (const annotation of state.annotations) {
+      const item = document.createElement("li");
+
+      // textContent, never innerHTML: annotation text is user-authored and is
+      // rendered as text, not markup. See docs/annotations.md.
+      const label = document.createElement("span");
+      label.textContent = `${annotation.text} — ${describeAnchor(annotation.anchor)}`;
+
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.textContent = "Edit";
+      editButton.addEventListener("click", () => {
+        app.getStore().set({ editingAnnotationId: annotation.id });
+        textInput.value = annotation.text;
+        remaining.textContent = `${MAX_ANNOTATION_LENGTH - annotation.text.length} characters remaining`;
+        textInput.focus();
+      });
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.textContent = "Remove";
+      removeButton.addEventListener("click", () => app.removeAnnotation(annotation.id));
+
+      item.appendChild(label);
+      item.appendChild(editButton);
       item.appendChild(removeButton);
       list.appendChild(item);
     }

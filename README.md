@@ -214,6 +214,7 @@ See: [Crochet IR](docs/crochet-ir-spec.md) ·
 [stitch geometry strategies](docs/stitch-geometry-strategies.md) ·
 [yarn material and lighting](docs/yarn-material-and-lighting.md) ·
 [measurement tools](docs/measurement-tools.md) ·
+[annotations](docs/annotations.md) ·
 [clipping and section views](docs/clipping-and-section-views.md) ·
 [performance benchmarks](docs/performance-benchmarks.md) ·
 [JSON Schema artefacts](docs/schema-artifacts.md) ·
@@ -346,8 +347,10 @@ that milestone does and does not cover, and
 full design.
 
 **Not yet done:** any category beyond rotationally-symmetric round-based
-structures, constraint-relaxation geometry refinement, free-text
-annotation tools, the physical trials for the deterministic engine itself,
+structures, constraint-relaxation geometry refinement, persistence or
+export for the free-text annotations (the annotation tools themselves *are*
+implemented — see [`docs/annotations.md`](docs/annotations.md) — but live
+only in the browser session), the physical trials for the deterministic engine itself,
 raster/photograph/OCR diagram ingestion (vector-SVG diagram ingestion *is*
 implemented — see above), and anything from the original image-analysis
 direction (paused — see

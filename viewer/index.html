@@ -312,6 +312,30 @@
           <ul id="measurement-list" aria-label="Recorded measurements"></ul>
         </section>
 
+        <section aria-labelledby="annotation-heading">
+          <h2 id="annotation-heading">Annotations</h2>
+          <label><input type="checkbox" id="annotation-mode-toggle" /> Annotation mode (click to place)</label>
+          <label for="annotation-kind-select">Click anchor kind</label>
+          <select id="annotation-kind-select">
+            <option value="stitch">Anchor to stitch</option>
+            <option value="point">Anchor to arbitrary point</option>
+          </select>
+          <p id="annotation-status" role="status" aria-live="polite"></p>
+          <label for="annotation-text">Annotation text</label>
+          <input
+            type="text"
+            id="annotation-text"
+            maxlength="280"
+            placeholder="Note about this stitch or region"
+          />
+          <p id="annotation-remaining"></p>
+          <div class="button-row">
+            <button id="annotation-save" type="button">Add annotation</button>
+            <button id="annotation-cancel-edit" type="button">Cancel edit</button>
+          </div>
+          <ul id="annotation-list" aria-label="Recorded annotations"></ul>
+        </section>
+
         <section aria-labelledby="perf-heading">
           <h2 id="perf-heading">Performance</h2>
           <dl id="perf"></dl>

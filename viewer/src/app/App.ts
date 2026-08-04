@@ -28,6 +28,12 @@ import {
   createRoundCircumferenceMeasurement,
   measureDistance,
 } from "../measurement/measurement";
+import {
+  buildAnnotationMarker,
+  createPointAnnotation,
+  createStitchAnnotation,
+  updateAnnotationText,
+} from "../annotations/annotations";
 import type { Vec3 } from "../types/geometry";
 import { ConstructionTimeline } from "../animation/construction";
 import { buildClippingPlane, applyClippingToMaterials } from "../clipping/clipping";
@@ -67,6 +73,7 @@ export class App {
   private pathContextOverlay: THREE.Mesh | null = null;
   private graphOverlayObject: THREE.LineSegments | null = null;
   private measurementLines: Map<string, THREE.Line> = new Map();
+  private annotationMarkers: Map<string, THREE.LineSegments> = new Map();
 
   constructor(canvas: HTMLCanvasElement, doc: GeometryDocument, jsonSizeBytes: number) {
     this.canvas = canvas;
@@ -155,6 +162,12 @@ export class App {
       measurements: [],
       pendingMeasurementStitchId: null,
       pendingMeasurementPoint: null,
+      // Annotations are anchored to this model's stitch ids and world
+      // positions, so they are cleared alongside measurements rather than
+      // being silently re-pointed at whatever stitch now holds the same id.
+      annotations: [],
+      pendingAnnotationAnchor: null,
+      editingAnnotationId: null,
       graphOverlay: false,
       pathModeActive: false,
       pathFocusRole: null,
@@ -277,6 +290,12 @@ export class App {
       (line.material as THREE.Material).dispose();
     }
     this.measurementLines.clear();
+    for (const marker of this.annotationMarkers.values()) {
+      this.scene.remove(marker);
+      marker.geometry.dispose();
+      (marker.material as THREE.Material).dispose();
+    }
+    this.annotationMarkers.clear();
   }
 
   getStore(): Store<ViewerState> {
@@ -387,6 +406,26 @@ export class App {
   private handlePointerDown(event: PointerEvent): void {
     const state = this.store.get();
 
+    // Annotation mode is checked before measurement mode so that, if both are
+    // somehow toggled on, one click has exactly one meaning. The UI keeps
+    // them mutually exclusive (main.ts turns each off when the other is
+    // enabled); this ordering makes the behaviour defined regardless.
+    if (state.annotationModeActive) {
+      if (state.annotationPointMode) {
+        const point = this.raycastPoint(event);
+        if (!point) return;
+        this.store.set({ pendingAnnotationAnchor: { kind: "point", point } });
+      } else {
+        const clickedStitchId = this.pickStitch(event);
+        if (!clickedStitchId) return;
+        this.store.set({
+          pendingAnnotationAnchor: { kind: "stitch", stitchId: clickedStitchId },
+          selectedStitchId: clickedStitchId,
+        });
+      }
+      return;
+    }
+
     if (state.measurementModeActive && state.measurementPointMode) {
       const point = this.raycastPoint(event);
       if (!point) return;
@@ -473,6 +512,58 @@ export class App {
     return true;
   }
 
+  /**
+   * Creates an annotation from the pending anchor and the supplied text.
+   *
+   * Returns false without changing anything when there is no pending anchor,
+   * when the text is empty/whitespace-only, or when a stitch anchor no longer
+   * resolves — so the caller can keep its confirm button disabled rather than
+   * producing an unlabelled or dangling marker.
+   */
+  addAnnotationFromPending(text: string): boolean {
+    const state = this.store.get();
+    const anchor = state.pendingAnnotationAnchor;
+    if (!anchor) return false;
+
+    const annotation =
+      anchor.kind === "stitch"
+        ? createStitchAnnotation(this.doc, anchor.stitchId, text)
+        : createPointAnnotation(this.doc, anchor.point, text);
+    if (!annotation) return false;
+
+    this.store.set({
+      annotations: [...state.annotations, annotation],
+      pendingAnnotationAnchor: null,
+    });
+    return true;
+  }
+
+  /** Replaces one annotation's text, leaving its id and anchor untouched.
+   * Returns false for an unknown id or empty text — an edit must never blank
+   * an annotation out; removing is a separate, explicit action. */
+  editAnnotationText(annotationId: string, text: string): boolean {
+    const state = this.store.get();
+    const existing = state.annotations.find((a) => a.id === annotationId);
+    if (!existing) return false;
+    const updated = updateAnnotationText(existing, text);
+    if (!updated) return false;
+
+    this.store.set({
+      annotations: state.annotations.map((a) => (a.id === annotationId ? updated : a)),
+      editingAnnotationId: null,
+    });
+    return true;
+  }
+
+  removeAnnotation(annotationId: string): void {
+    const state = this.store.get();
+    this.store.set({
+      annotations: state.annotations.filter((a) => a.id !== annotationId),
+      editingAnnotationId:
+        state.editingAnnotationId === annotationId ? null : state.editingAnnotationId,
+    });
+  }
+
   /** Picks a stitch id via the invisible hit-proxy spheres (selection/
    * hit_proxies.ts) — the same fast `InstancedMesh` raycast in every view
    * mode, regardless of which geometry (structural capsules, yarn tubes)
@@ -498,6 +589,7 @@ export class App {
     this.applySelectedOverlay(state);
     this.applyGraphOverlay(state);
     this.applyMeasurements(state);
+    this.applyAnnotations(state);
     // Runs last: applySelectedOverlay/applyGraphOverlay/applyMeasurements
     // rebuild their objects from scratch on every call, so clipping must be
     // (re-)applied afterwards to reach the fresh materials, not the
@@ -577,6 +669,13 @@ export class App {
     ];
     if (this.graphOverlayObject) materials.push(this.graphOverlayObject.material as THREE.Material);
     for (const line of this.measurementLines.values()) materials.push(line.material as THREE.Material);
+    // Annotation markers are clipped like the model and the measurement
+    // lines: an annotation on a stitch that the clipping plane has cut away
+    // should disappear with it. The selection marker remains the one
+    // deliberate exception (docs/clipping-and-section-views.md).
+    for (const marker of this.annotationMarkers.values()) {
+      materials.push(marker.material as THREE.Material);
+    }
     applyClippingToMaterials(materials, plane);
   }
 
@@ -672,6 +771,30 @@ export class App {
       if (!line) continue;
       this.measurementLines.set(measurement.id, line);
       this.scene.add(line);
+    }
+  }
+
+  /** Adds/removes annotation markers to match the store, reusing existing
+   * markers by id. Text edits deliberately do not rebuild the marker — the
+   * marker encodes only the anchor, and the text lives in the side panel
+   * (see annotations/annotations.ts's buildAnnotationMarker). */
+  private applyAnnotations(state: ViewerState): void {
+    const currentIds = new Set(state.annotations.map((a) => a.id));
+    for (const [id, marker] of this.annotationMarkers) {
+      if (!currentIds.has(id)) {
+        this.scene.remove(marker);
+        marker.geometry.dispose();
+        (marker.material as THREE.Material).dispose();
+        this.annotationMarkers.delete(id);
+      }
+    }
+    const markerRadiusCm = 0.5 / this.doc.gauge.stitches_per_cm;
+    for (const annotation of state.annotations) {
+      if (this.annotationMarkers.has(annotation.id)) continue;
+      const marker = buildAnnotationMarker(this.doc, annotation, markerRadiusCm);
+      if (!marker) continue;
+      this.annotationMarkers.set(annotation.id, marker);
+      this.scene.add(marker);
     }
   }
 

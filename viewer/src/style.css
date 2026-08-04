@@ -264,7 +264,8 @@ dd {
 }
 
 #yarn-warnings,
-#measurement-list {
+#measurement-list,
+#annotation-list {
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0;
@@ -280,7 +281,8 @@ dd {
   border-radius: 0 4px 4px 0;
 }
 
-#measurement-list li {
+#measurement-list li,
+#annotation-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -291,10 +293,26 @@ dd {
   border-radius: 4px;
 }
 
-#measurement-list button {
+#measurement-list button,
+#annotation-list button {
   width: auto;
   padding: 0.15rem 0.5rem;
   font-size: 0.75rem;
+}
+
+/* Annotation text is user-authored and can run to MAX_ANNOTATION_LENGTH, so
+   the label wraps and shrinks rather than pushing the Edit/Remove buttons
+   out of the panel. */
+#annotation-list li span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#annotation-remaining {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 #path-role-legend,

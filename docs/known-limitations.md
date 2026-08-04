@@ -113,11 +113,12 @@ accounting for that slice.
 - **No persistence.** The API never writes submitted patterns to disk and
   has no database; closing the tab loses the current pattern text (the
   textarea itself has no autosave).
-- **Single clipping plane (numeric entry + reset added), no annotation
-  tools.** Five measurement kinds are now implemented
-  (`docs/measurement-tools.md`) — the "no measurement" half of this
-  limitation is fully resolved; free-text annotations remain unbuilt
-  (`annotations/` is still an empty placeholder directory).
+- **Single clipping plane (numeric entry + reset added).** Five measurement
+  kinds are now implemented (`docs/measurement-tools.md`) and free-text
+  annotations are now implemented (`docs/annotations.md`) — both halves of
+  this limitation are resolved; only the single-clipping-plane restriction
+  remains. Annotations are in-memory only: no persistence, no export, no
+  backend representation, cleared on recompile.
 - **`options.strict` has no effect yet** — accepted by the API and typed in
   the schema, reserved for a future stricter-diagnostics mode, not silently
   dropped but also not yet implemented.
@@ -258,8 +259,11 @@ the diagram route's own bounded scope.
   to-stitch, object width, object height, and selected-round circumference
   (see `docs/measurement-tools.md`), including disposal on recompile and
   across a repeated-recompile stress test
-  (`viewer/e2e/lifecycle-stress.spec.ts`). **Free-text annotations remain
-  unbuilt** — `annotations/` is still an empty placeholder directory.
+  (`viewer/e2e/lifecycle-stress.spec.ts`). **Free-text annotations are now
+  implemented** (`docs/annotations.md`): stitch- or point-anchored notes with
+  create/edit/remove, wireframe scene markers, and the same
+  clear-on-recompile disposal — in-memory only, with no persistence or
+  export.
 - **No level-of-detail system** — one fixed geometry resolution per quality
   preset, regardless of camera distance or selection state. Quality presets
   (`docs/yarn-material-and-lighting.md`) are a coarse, user-chosen global

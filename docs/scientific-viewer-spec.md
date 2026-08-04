@@ -35,7 +35,8 @@ viewer/src/
 │   └── measurement.ts       one create*Measurement() function per kind + line-overlay builder
 ├── animation/construction.ts    sequence-driven construction timeline
 ├── clipping/clipping.ts    bounds-relative clipping plane (THREE.Plane + material.clippingPlanes) — see docs/clipping-and-section-views.md
-├── state/store.ts          plain pub-sub ViewerState (measurements, clipping, path-mode/role-focus, quality, xray, ...)
+├── annotations/annotations.ts  free-text notes anchored to a stitch id or world point — see docs/annotations.md
+├── state/store.ts          plain pub-sub ViewerState (measurements, annotations, clipping, path-mode/role-focus, quality, xray, ...)
 ├── state/diagram_store.ts  plain pub-sub DiagramState (analyse/compile status, document, corrections, filters)
 ├── types/geometry.ts       mirrors geometry/models.py field-for-field
 ├── types/diagram.ts        mirrors diagram/ir.py + diagram/corrections.py field-for-field
@@ -43,9 +44,10 @@ viewer/src/
 └── main.ts                 DOM wiring for the control panel (both written-pattern and SVG-diagram modes)
 ```
 
-`annotations/` remains intentionally empty — free-text annotations (as
-opposed to structured measurements, which are now implemented) are still
-explicitly future work.
+`annotations/` is now implemented — free-text notes anchored to a stitch id
+or a raw world point, alongside the structured measurements in
+`measurement/`. See `docs/annotations.md`. They are viewer-session state
+only: never sent to the backend, never persisted, and cleared on recompile.
 
 ## Pipeline diagrams
 
