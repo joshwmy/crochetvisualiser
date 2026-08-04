@@ -14,6 +14,10 @@ from crochet_reconstruction.api.schemas import (
     CompileSummary,
     ComponentsPayload,
 )
+from crochet_reconstruction.api.strict_mode import (
+    strict_block_message,
+    strict_blocking_diagnostics,
+)
 from crochet_reconstruction.geometry.layout import build_geometry
 from crochet_reconstruction.graph.builder import build_stitch_graph
 from crochet_reconstruction.graph.errors import StitchGraphError
@@ -42,7 +46,7 @@ def compile_written_pattern(
     error-severity diagnostic — the caller (the HTTP route) never has to
     catch an exception from this function to build a clean response.
     """
-    del options  # accepted for forward compatibility; see CompileOptions docstring
+    strict = options.strict if options is not None else CompileOptions().strict
 
     if len(source) > max_source_length:
         return _failure(
@@ -116,6 +120,23 @@ def compile_written_pattern(
                 ),
             ]
         )
+
+    # Checked only once the pipeline has otherwise succeeded: strict mode turns
+    # an *otherwise valid* compile into a refusal, so running it earlier would
+    # mask genuine errors behind a strictness complaint.
+    if strict:
+        blocking = strict_blocking_diagnostics(diagnostics)
+        if blocking:
+            return _failure(
+                [
+                    *diagnostics,
+                    Diagnostic(
+                        severity="error",
+                        code=DiagnosticCode.STRICT_MODE_BLOCKED,
+                        message=strict_block_message(blocking),
+                    ),
+                ]
+            )
 
     section_count = sum(len(component.rounds) for component in components)
     summary = CompileSummary(

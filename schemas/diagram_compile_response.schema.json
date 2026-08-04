@@ -299,6 +299,7 @@
         "UNSUPPORTED_CHART_CONSTRUCTION",
         "GRAPH_VALIDATION_FAILURE",
         "MANUAL_CORRECTION_CONFLICT",
+        "STRICT_MODE_BLOCKED",
         "INTERNAL_ERROR"
       ],
       "title": "DiagramDiagnosticCode",
@@ -1609,5 +1610,5 @@
   ],
   "title": "DiagramCompileResponse",
   "type": "object",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

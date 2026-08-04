@@ -96,6 +96,17 @@ command to run.
   currently occur in practice. This would need to change if the frontend
   and backend were ever deployed independently (e.g. a backend upgrade
   rolled out before the matching frontend build).
+- **`API_CONTRACT_VERSION` went `1.0.0` → `1.1.0`** when `options.strict`
+  became real behaviour: its default flipped from `true` to `false`, and
+  `STRICT_MODE_BLOCKED` joined both diagnostic code enums. Minor rather than
+  major because a request that omits `options` — what every current client
+  sends, the viewer included — behaves exactly as it did at `1.0.0`. The one
+  case that *does* change: a client that explicitly sent `strict: true` while
+  the field was a documented no-op now gets strict blocking. That is
+  unavoidable in any implementation of the field, and it is the reason the
+  default was flipped rather than left at `true`, which would have changed
+  behaviour for *every* caller instead of only those who opted in. See
+  `docs/compile-api.md`'s "Strict mode".
 - **`DiagramDocument`/`DiagramCorrectionSet` and the diagram request/
   response types** have the same "no independent deployment, so no runtime
   check yet" status as the written-pattern API types above — same gap,

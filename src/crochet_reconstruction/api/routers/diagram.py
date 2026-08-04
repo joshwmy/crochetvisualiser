@@ -22,9 +22,9 @@ router = APIRouter(prefix="/api/visualizer/diagram", tags=["visualizer", "diagra
 
 @router.post("/analyse", response_model=DiagramAnalyseResponse)
 def analyse(request: DiagramAnalyseRequest) -> DiagramAnalyseResponse:
-    return analyse_diagram(request.svg_source)
+    return analyse_diagram(request.svg_source, strict=request.options.strict)
 
 
 @router.post("/compile", response_model=DiagramCompileResponse)
 def compile_route(request: DiagramCompileRequest) -> DiagramCompileResponse:
-    return compile_diagram(request.diagram, request.corrections)
+    return compile_diagram(request.diagram, request.corrections, strict=request.options.strict)

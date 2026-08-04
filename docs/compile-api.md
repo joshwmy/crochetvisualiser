@@ -19,7 +19,7 @@ Request (camelCase on the wire; Pydantic model `CompileRequest`):
 {
   "source": "Round 1: 6 sc in magic ring [6]\n...",
   "terminology": "US",
-  "options": { "strict": true }
+  "options": { "strict": false }
 }
 ```
 
@@ -28,9 +28,8 @@ Request (camelCase on the wire; Pydantic model `CompileRequest`):
   see "Error handling philosophy" below).
 - `terminology` — `Literal["US"]`, default `"US"`. Any other value is a
   `422` (a request-shape error, not a compile-semantic one).
-- `options.strict` — accepted, currently has no behavioural effect
-  (reserved for a future stricter interpretation mode). Documented, not
-  silently ignored.
+- `options.strict` — default `false`. When `true`, blocks a compile that only
+  succeeded because something was assumed or flagged. See "Strict mode" below.
 
 Response (`CompileResponse`), success:
 
@@ -98,7 +97,7 @@ though compiling would currently be blocked.
 Request (`DiagramCompileRequest`):
 
 ```json
-{ "diagram": { /* the DiagramDocument returned by analyse, possibly hand-edited */ }, "corrections": { /* DiagramCorrectionSet, see docs/diagram-corrections.md */ }, "options": { "strict": true } }
+{ "diagram": { /* the DiagramDocument returned by analyse, possibly hand-edited */ }, "corrections": { /* DiagramCorrectionSet, see docs/diagram-corrections.md */ }, "options": { "strict": false } }
 ```
 
 Response (`DiagramCompileResponse`) — reuses the written-pattern
@@ -126,6 +125,40 @@ from scratch.
 Neither diagram endpoint stores the submitted SVG or corrections
 server-side — see `docs/diagram-corrections.md`, "No server-side
 persistence."
+
+## Strict mode
+
+`options.strict` (`api/strict_mode.py` — one policy, shared by both compile
+paths so the two can't drift). It blocks a compile that **only succeeded
+because something was assumed or flagged**:
+
+- any `warning`-severity diagnostic, and
+- the written path's `ASSUMPTION_APPLIED` info diagnostic, which records that
+  the default gauge was substituted for one the pattern never stated.
+
+`ASSUMPTION_APPLIED` is `info` rather than `warning` because a normal compile
+is perfectly happy to apply it — but a caller asking for strict interpretation
+is precisely one who doesn't want an unstated value quietly filled in, so it
+counts here despite its severity. `error` diagnostics are not strict mode's
+business: they already block in both modes.
+
+| Endpoint | Default | `strict: true` effect |
+|---|---|---|
+| `POST /compile` | `false` | Blocks with `STRICT_MODE_BLOCKED`; `pattern`/`stitchGraph`/`geometry`/`summary` all `null`. |
+| `POST /diagram/analyse` | `false` | Withholds `summary.readyToCompile` only. **Never fails the analysis** — reporting what the chart contains is analysis's job, and refusing would leave the user nothing to correct in 2D review. |
+| `POST /diagram/compile` | `false` | Blocks with `STRICT_MODE_BLOCKED`; `diagram` is still returned so the user can see and fix what was objected to. |
+
+**The default is `false`, which reproduces exactly the behaviour this field
+had while it was a documented no-op.** It previously defaulted to `true`, so
+implementing it under the old default would have started failing every
+existing caller — including the viewer, which sends no `options` at all and
+therefore takes the `false` default. Strict is opt-in.
+
+The strict check runs **last**, only once the pipeline has otherwise
+succeeded: strict turns an otherwise-valid compile into a refusal, so running
+it earlier would mask genuine errors behind a strictness complaint. The
+blocking diagnostics are returned alongside `STRICT_MODE_BLOCKED`, whose
+message names the distinct codes rather than repeating their text.
 
 ## Error handling philosophy
 

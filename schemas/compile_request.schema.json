@@ -3,7 +3,7 @@
     "CompileOptions": {
       "properties": {
         "strict": {
-          "default": true,
+          "default": false,
           "title": "Strict",
           "type": "boolean"
         }
@@ -18,7 +18,7 @@
     "options": {
       "$ref": "#/$defs/CompileOptions",
       "default": {
-        "strict": true
+        "strict": false
       }
     },
     "source": {
@@ -37,5 +37,5 @@
   ],
   "title": "CompileRequest",
   "type": "object",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

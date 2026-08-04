@@ -119,9 +119,15 @@ accounting for that slice.
   this limitation are resolved; only the single-clipping-plane restriction
   remains. Annotations are in-memory only: no persistence, no export, no
   backend representation, cleared on recompile.
-- **`options.strict` has no effect yet** — accepted by the API and typed in
-  the schema, reserved for a future stricter-diagnostics mode, not silently
-  dropped but also not yet implemented.
+- **`options.strict` is implemented, but no client exposes it.** The API
+  honours it on all three endpoints (`docs/compile-api.md`'s "Strict mode");
+  the viewer sends no `options` at all and so always takes the `false`
+  default. There is no UI toggle for it — strict mode is currently reachable
+  only by calling the API directly. Its default was **changed from `true` to
+  `false`** when it was implemented, so that turning a documented no-op into
+  real behaviour could not silently start failing existing callers; a client
+  that previously sent `strict: true` expecting nothing to happen will now
+  get strict blocking, which is the only way the field can mean anything.
 - **E2E coverage is 16 tests across four files**, not a full interaction
   matrix — `viewer/e2e/compile-workflow.spec.ts` (2 tests: the original
   compile scenario, plus an extended scenario covering yarn mode, path

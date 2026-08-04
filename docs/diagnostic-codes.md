@@ -25,7 +25,8 @@ rendered by the viewer's diagnostics panel.
 | `EMPTY_INPUT` | error | Source is empty, whitespace-only, or has no content after stripping blank lines/comments. |
 | `INPUT_TOO_LARGE` | error | Source exceeds the API's character limit (`VISUALIZER_MAX_SOURCE_LENGTH`), or the pattern's own section count/stitch-count safety limits (`MAX_SECTION_LINES`, `MAX_TOTAL_STITCHES` in `semantic.py`). |
 | `INVALID_TERMINOLOGY` | — | Not actually emitted as a `Diagnostic` — an unsupported `terminology` value is rejected by FastAPI/Pydantic request validation (HTTP 422) before compilation ever starts, since it's a request-shape error, not a compile-semantic one. Documented here because the brief lists it alongside the others. |
-| `ASSUMPTION_APPLIED` | info | A deterministic default was used because the source didn't specify something (currently: the default gauge, since written patterns have no gauge field). Never blocks a successful compile. |
+| `ASSUMPTION_APPLIED` | info | A deterministic default was used because the source didn't specify something (currently: the default gauge, since written patterns have no gauge field). Never blocks a successful compile **unless `options.strict` is set** — see `STRICT_MODE_BLOCKED`. |
+| `STRICT_MODE_BLOCKED` | error | `options.strict` was set and the compile produced a diagnostic that would not normally block: any `warning`, or `ASSUMPTION_APPLIED`. The offending diagnostics are returned alongside this one; its message names their distinct codes. Also exists as a `DiagramDiagnosticCode` for the diagram compile path — same policy, see `docs/compile-api.md`'s "Strict mode". |
 
 ## Design notes
 

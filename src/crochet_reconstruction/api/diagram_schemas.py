@@ -30,8 +30,15 @@ class _CamelModel(BaseModel):
 class DiagramAnalyseOptions(_CamelModel):
     construction_mode: Literal["circular"] = "circular"
     strict: bool = False
-    """Reserved for a future stricter interpretation mode, matching
-    ``CompileOptions.strict``'s documented no-op-for-now status."""
+    """Require a clean analysis before ``summary.ready_to_compile`` is true —
+    any ``warning`` diagnostic withholds readiness in addition to the existing
+    unclassified/low-confidence checks.
+
+    Analysis itself never fails on strictness: an imperfect chart still returns
+    ``success: true`` with the full document, exactly as documented for the
+    non-strict case. Strict only tightens the *readiness* verdict, because
+    analysis's job is to report what the chart contains, not to refuse to
+    report it. See ``api/strict_mode.py``."""
 
 
 class DiagramAnalyseRequest(_CamelModel):
@@ -56,7 +63,10 @@ class DiagramAnalyseResponse(_CamelModel):
 
 
 class DiagramCompileOptions(_CamelModel):
-    strict: bool = True
+    strict: bool = False
+    """Same policy as ``CompileOptions.strict`` (``api/strict_mode.py``): any
+    ``warning`` diagnostic blocks the compile. Defaults to ``False`` so the
+    previous no-op behaviour is preserved for callers that don't opt in."""
 
 
 class DiagramCompileRequest(_CamelModel):

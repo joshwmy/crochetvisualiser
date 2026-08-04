@@ -55,7 +55,14 @@ from crochet_reconstruction.parsing.written.diagnostics import Diagnostic
 # GeometryDocument/StitchGraph's own schema_version fields, since the API
 # shape (e.g. adding an optional field to CompileResponse) can change on a
 # different cadence than the geometry/graph payload shapes it carries.
-API_CONTRACT_VERSION = "1.0.0"
+#
+# 1.1.0: `options.strict` became real behaviour (api/strict_mode.py) and its
+# default flipped from true to false; `STRICT_MODE_BLOCKED` was added to both
+# diagnostic code enums. Minor rather than major because omitting `options`
+# entirely — what every current client does, including the viewer — behaves
+# exactly as it did at 1.0.0. See docs/schema-artifacts.md's compatibility
+# section for the one case that does change.
+API_CONTRACT_VERSION = "1.1.0"
 
 SCHEMAS_DIR = Path(__file__).resolve().parents[3] / "schemas"
 

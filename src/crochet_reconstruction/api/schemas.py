@@ -25,11 +25,15 @@ class _CamelModel(BaseModel):
 
 
 class CompileOptions(_CamelModel):
-    strict: bool = True
-    """Reserved for a future stricter interpretation mode (e.g. promoting
-    certain warnings to errors). Currently has no behavioural effect —
-    every diagnostic that would block a compile is already an error;
-    documented here rather than silently accepted-and-ignored."""
+    strict: bool = False
+    """Block a compile that only succeeded because something was assumed or
+    flagged — any ``warning`` diagnostic, plus ``ASSUMPTION_APPLIED`` (the
+    default gauge substituted for one the pattern never stated).
+
+    Defaults to ``False``, which is exactly the behaviour this field had while
+    it was a documented no-op, so no existing caller changes behaviour without
+    opting in. See ``api/strict_mode.py`` for the shared policy and
+    ``docs/compile-api.md``'s "Strict mode" section."""
 
 
 class CompileRequest(_CamelModel):
