@@ -42,8 +42,15 @@ function assertSupportedSchemaVersion(document: DiagramDocument | null): void {
 export class DiagramController {
   readonly store: DiagramStore = createDiagramStore();
   private inFlight: AbortController | null = null;
+  /** Sent as `options.strict` on analyse and compile. Set by the UI toggle
+   * (main.ts's wireStrictMode); see CompileController.setStrict. */
+  private strict = false;
 
   constructor(private app: App) {}
+
+  setStrict(strict: boolean): void {
+    this.strict = strict;
+  }
 
   async analyse(svgSource: string): Promise<void> {
     this.inFlight?.abort();
@@ -58,7 +65,9 @@ export class DiagramController {
     });
 
     try {
-      const response = await analyseDiagram(svgSource, controller.signal);
+      const response = await analyseDiagram(svgSource, controller.signal, {
+        strict: this.strict,
+      });
       if (this.store.get().requestId !== requestId) return; // superseded
       assertSupportedSchemaVersion(response.diagram);
 
@@ -98,7 +107,9 @@ export class DiagramController {
     this.store.set({ status: "compiling", requestId, errorMessage: null });
 
     try {
-      const response = await compileDiagram(state.document, state.corrections, controller.signal);
+      const response = await compileDiagram(state.document, state.corrections, controller.signal, {
+        strict: this.strict,
+      });
       if (this.store.get().requestId !== requestId) return;
       assertSupportedSchemaVersion(response.diagram);
 

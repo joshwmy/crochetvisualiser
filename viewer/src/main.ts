@@ -88,6 +88,7 @@ async function main(): Promise<void> {
   wireAnnotations(app);
   wireResize(app);
   wireCompileWorkflow(app, controller);
+  wireStrictMode(app, controller, diagramController);
   wireInputModeTabs();
   wireDiagramWorkflow(app, diagramController);
   refreshDocDependentUI(app);
@@ -746,6 +747,28 @@ function wireCompileWorkflow(app: App, controller: CompileController): void {
  * so a user can flip back and forth without losing draft text or a
  * previous analysis (brief: "Do not remove or damage the written-pattern
  * workflow"). */
+/** One toggle for both input modes — it maps to `options.strict`, which the
+ * API honours identically on the written-pattern and diagram endpoints
+ * (docs/compile-api.md, "Strict mode"). Deliberately outside both workflow
+ * panels so it doesn't read as a written-pattern-only setting. */
+function wireStrictMode(
+  app: App,
+  controller: CompileController,
+  diagramController: DiagramController,
+): void {
+  const toggle = qs<HTMLInputElement>("strict-mode-toggle");
+
+  const apply = (strict: boolean): void => {
+    app.getStore().set({ strictMode: strict });
+    controller.setStrict(strict);
+    diagramController.setStrict(strict);
+  };
+
+  apply(app.getStore().get().strictMode);
+  toggle.checked = app.getStore().get().strictMode;
+  toggle.addEventListener("change", () => apply(toggle.checked));
+}
+
 function wireInputModeTabs(): void {
   const tabs = qs<HTMLDivElement>("input-mode-tabs");
   const writtenPanel = qs<HTMLDivElement>("written-pattern-panel");

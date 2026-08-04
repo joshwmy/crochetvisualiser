@@ -14,8 +14,17 @@ import { createCompileStore, type CompileStore } from "../state/compile_store";
 export class CompileController {
   readonly store: CompileStore = createCompileStore();
   private inFlight: AbortController | null = null;
+  /** Sent as `options.strict` on the next request. Set by the UI toggle
+   * (main.ts's wireStrictMode) rather than read from the viewer store, so
+   * this controller keeps depending on `App` only for
+   * `loadGeometryDocument` — the one thing it actually drives. */
+  private strict = false;
 
   constructor(private app: App) {}
+
+  setStrict(strict: boolean): void {
+    this.strict = strict;
+  }
 
   async submit(source: string): Promise<void> {
     if (!source.trim()) {
@@ -47,7 +56,9 @@ export class CompileController {
     this.store.set({ status: "compiling", requestId, errorMessage: null });
 
     try {
-      const response = await compilePattern(source, controller.signal);
+      const response = await compilePattern(source, controller.signal, {
+        strict: this.strict,
+      });
       if (this.store.get().requestId !== requestId) return; // superseded
 
       if (!response.success) {

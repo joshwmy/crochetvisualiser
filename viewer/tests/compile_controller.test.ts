@@ -77,6 +77,29 @@ describe("CompileController", () => {
     expect(controller.store.get().summary?.stitchCount).toBe(6);
   });
 
+  it("sends options.strict = false by default", async () => {
+    compilePatternMock.mockResolvedValue(successResponse);
+    const controller = new CompileController(makeFakeApp());
+
+    await controller.submit("Round 1: 6 sc in magic ring [6]\n");
+
+    expect(compilePatternMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      strict: false,
+    });
+  });
+
+  it("sends options.strict = true once enabled", async () => {
+    compilePatternMock.mockResolvedValue(successResponse);
+    const controller = new CompileController(makeFakeApp());
+    controller.setStrict(true);
+
+    await controller.submit("Round 1: 6 sc in magic ring [6]\n");
+
+    expect(compilePatternMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      strict: true,
+    });
+  });
+
   it("reports validation_error with diagnostics on a failed compile, without touching the viewer", async () => {
     compilePatternMock.mockResolvedValue(failureResponse);
     const app = makeFakeApp();

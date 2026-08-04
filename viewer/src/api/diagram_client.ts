@@ -1,6 +1,7 @@
 import type { CompileResponse } from "../types/compile";
 import type { DiagramCorrectionSet, DiagramDiagnostic, DiagramDocument } from "../types/diagram";
-import { CompileNetworkError, getApiBaseUrl } from "./client";
+import { CompileNetworkError, DEFAULT_REQUEST_OPTIONS, getApiBaseUrl } from "./client";
+import type { RequestOptions } from "./client";
 
 export interface DiagramAnalyseSummary {
   symbolCount: number;
@@ -60,10 +61,18 @@ async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): P
   return (await response.json()) as T;
 }
 
-export function analyseDiagram(svgSource: string, signal?: AbortSignal): Promise<DiagramAnalyseResponse> {
+/** Strict analysis withholds `summary.readyToCompile` when the chart produced
+ * warnings; unlike the compile endpoints it never turns a parsed chart into a
+ * failure, so the 2D review step always has something to show. See
+ * docs/compile-api.md's "Strict mode". */
+export function analyseDiagram(
+  svgSource: string,
+  signal?: AbortSignal,
+  options: RequestOptions = DEFAULT_REQUEST_OPTIONS,
+): Promise<DiagramAnalyseResponse> {
   return postJson<DiagramAnalyseResponse>(
     "/api/visualizer/diagram/analyse",
-    { svgSource },
+    { svgSource, options },
     signal,
   );
 }
@@ -72,10 +81,11 @@ export function compileDiagram(
   diagram: DiagramDocument,
   corrections: DiagramCorrectionSet,
   signal?: AbortSignal,
+  options: RequestOptions = DEFAULT_REQUEST_OPTIONS,
 ): Promise<DiagramCompileResponse> {
   return postJson<DiagramCompileResponse>(
     "/api/visualizer/diagram/compile",
-    { diagram, corrections },
+    { diagram, corrections, options },
     signal,
   );
 }

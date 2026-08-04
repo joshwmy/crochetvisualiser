@@ -202,6 +202,38 @@ describe("DiagramController", () => {
       sampleDocument,
       controller.store.get().corrections,
       expect.anything(),
+      { strict: false },
+    );
+  });
+
+  it("sends options.strict = false by default", async () => {
+    analyseDiagramMock.mockResolvedValue(analyseSuccess);
+    const controller = new DiagramController(makeFakeApp());
+
+    await controller.analyse("<svg></svg>");
+
+    expect(analyseDiagramMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      strict: false,
+    });
+  });
+
+  it("sends options.strict = true on both analyse and compile once enabled", async () => {
+    analyseDiagramMock.mockResolvedValue(analyseSuccess);
+    compileDiagramMock.mockResolvedValue(compileSuccess);
+    const controller = new DiagramController(makeFakeApp());
+    controller.setStrict(true);
+
+    await controller.analyse("<svg></svg>");
+    await controller.compile();
+
+    expect(analyseDiagramMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      strict: true,
+    });
+    expect(compileDiagramMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { strict: true },
     );
   });
 

@@ -14,6 +14,15 @@
           <button type="button" data-mode="diagram" role="tab" aria-selected="false">SVG diagram</button>
         </div>
 
+        <label id="strict-mode-label">
+          <input type="checkbox" id="strict-mode-toggle" aria-describedby="strict-mode-hint" />
+          Strict mode
+        </label>
+        <p id="strict-mode-hint" class="hint">
+          Refuse a result that relied on an assumption or produced a warning.
+          Applies to both input modes.
+        </p>
+
         <div id="written-pattern-panel">
           <h1>Written pattern</h1>
           <p class="subtitle">US terminology only. See the example for supported syntax.</p>

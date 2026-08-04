@@ -63,6 +63,11 @@ export interface ViewerState {
   /** Id of the annotation whose text is currently loaded into the editor, or
    * null when the editor would create a new annotation instead. */
   editingAnnotationId: string | null;
+  /** Sent as `options.strict` on every compile/analyse request. Lives here
+   * rather than in either workflow store because one toggle governs both the
+   * written-pattern and SVG-diagram paths — see docs/compile-api.md's
+   * "Strict mode". Defaults to false, matching the API's own default. */
+  strictMode: boolean;
   /** Semantic stitch-path inspection mode (yarn-mode only) — see selection/path_inspection.ts. */
   pathModeActive: boolean;
   /** null means "highlight all roles"; a role narrows display to just that role. */
@@ -122,6 +127,7 @@ export function createInitialState(stitchCount: number, quality: QualityName = "
     annotationModeActive: false,
     annotationPointMode: false,
     editingAnnotationId: null,
+    strictMode: false,
     pathModeActive: false,
     pathFocusRole: null,
   };

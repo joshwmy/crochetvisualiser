@@ -8,9 +8,25 @@ export function getApiBaseUrl(): string {
   return configured?.replace(/\/$/, "") || "http://localhost:8000";
 }
 
+/**
+ * Request options shared by both compile paths.
+ *
+ * `strict` blocks a compile that only succeeded because something was assumed
+ * or flagged — see docs/compile-api.md's "Strict mode". The backend defaults
+ * it to `false`; this client sends it explicitly so a captured request says
+ * which mode produced a given response, rather than leaving it to be inferred
+ * from a default.
+ */
+export interface RequestOptions {
+  strict: boolean;
+}
+
+export const DEFAULT_REQUEST_OPTIONS: RequestOptions = { strict: false };
+
 export async function compilePattern(
   source: string,
   signal: AbortSignal,
+  options: RequestOptions = DEFAULT_REQUEST_OPTIONS,
 ): Promise<CompileResponse> {
   const url = `${getApiBaseUrl()}/api/visualizer/compile`;
   let response: Response;
@@ -18,7 +34,7 @@ export async function compilePattern(
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source }),
+      body: JSON.stringify({ source, options }),
       signal,
     });
   } catch (err) {
