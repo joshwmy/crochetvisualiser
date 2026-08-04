@@ -171,15 +171,27 @@ accounting for that slice.
   structural mode as a fast, uniform overview (see
   `docs/scientific-viewer-spec.md`'s "Known simplification, structural mode
   only"), not an oversight.
-- **Stitch position itself is still not stitch-type-specific.** Yarn mode's
-  per-type visual differences (post height, wrap count) are drawn as a
-  locally-varying curve between a visually-lowered "attach" point and the
-  stitch's real, backend-computed position — the position itself still
-  comes from the same uniform-row-height layout regardless of `sc`/`hdc`/
-  `dc`. A `dc`-heavy round is not spaced any further apart than an
-  `sc`-heavy one of the same stitch count. This is a real geometric
-  simplification, not resolved by the new yarn-mode visuals, which are
-  cosmetic curve shape only.
+- **Stitch position is now stitch-type-specific vertically, but only
+  vertically, and on a provisional ratio.** A round's spacing is scaled by
+  its dominant stitch family relative to `Gauge.stitch_family`
+  (`geometry/stitch_heights.py`), so a `dc` round is spaced further than an
+  `sc` round at the same round gauge — the previous "a `dc`-heavy round is
+  not spaced any further apart than an `sc`-heavy one" limitation is
+  resolved. Three real caveats remain:
+  - **The ratios are the standard turning-chain convention (`sc` 1 / `hdc`
+    2 / `dc` 3), not measured fabric proportions, and await crochet-expert
+    approval** in the sense of `docs/decision-gates.md`. Real worked `dc` is
+    commonly shorter than three times an `sc`. Every document whose spacing
+    they actually affect carries a warning saying so.
+  - **A round is placed at one `z`, characterised by its dominant family.**
+    A round genuinely mixing `sc` and `dc` gets one height, not per-stitch
+    heights — within-round vertical variation is not modelled at all.
+  - **Radius and angular placement are still family-independent.** Only
+    height responds to stitch type; a `dc` round's radius still comes from
+    stitch count and stitch gauge alone.
+  Yarn mode's per-type visual differences (post height, wrap count) remain
+  separate and still cosmetic: a locally-varying curve between a visually-
+  lowered "attach" point and the stitch's real, backend-computed position.
 - **Crown dome shape is a visual heuristic** (hemispherical cap sized at
   60% of crown radius), not derived from the actual increase schedule's
   curvature. It looks like a crown; it is not a claim about the real one.

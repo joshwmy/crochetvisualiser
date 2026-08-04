@@ -21,12 +21,15 @@ from crochet_reconstruction.geometry.rotational_rounds import (
     default_yarn_diameter_cm,
     place_stitches,
 )
+from crochet_reconstruction.geometry.stitch_heights import stitch_height_warnings
 from crochet_reconstruction.graph.models import StitchGraph
 
 ASSUMPTION_WARNINGS = [
     "Radius is derived from stitch count and gauge, treating each round as a "
     "perfect circle; it is not a measurement of a physical object.",
-    "Row height is constant per round across crown, body, and brim.",
+    "Row height is one round gauge unit, scaled per round by the dominant "
+    "stitch family's height relative to the family the gauge was measured in; "
+    "it does not otherwise vary across crown, body, and brim.",
     "The crown is modelled as a hemispherical cap for visual continuity, not "
     "derived from the increase schedule's actual curvature.",
     "Yarn diameter is a visual default (half a stitch width) unless overridden; "
@@ -136,7 +139,11 @@ def build_geometry(
         edges=edges,
         bounds=_bounds(positions),
         measurements=_measurements(positions),
-        warnings=list(ASSUMPTION_WARNINGS) + list(graph.warnings),
+        warnings=(
+            list(ASSUMPTION_WARNINGS)
+            + stitch_height_warnings(components, gauge.stitch_family)
+            + list(graph.warnings)
+        ),
     )
     fingerprint = compute_geometry_fingerprint(document)
     return document.model_copy(update={"geometry_fingerprint": fingerprint})

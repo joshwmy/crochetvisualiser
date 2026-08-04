@@ -22,8 +22,13 @@ Documented assumptions (all analytical, none measured or simulated):
 1. **Radius**: `circumference_cm = stitch_count / stitches_per_cm`,
    `radius_cm = circumference_cm / 2π`. Treats every round as a perfect
    circle of evenly-spaced stitches.
-2. **Row height**: constant `1 / rounds_per_cm` per round, applied
-   uniformly across crown, body, and brim.
+2. **Row height**: `1 / rounds_per_cm`, scaled per round by the round's
+   dominant stitch family relative to `Gauge.stitch_family` — the family the
+   round gauge was actually measured in (`stitch_heights.py`). A round worked
+   in the gauge's own family scales by exactly `1.0`, so a single-family
+   pattern is spaced identically to the earlier uniform-height behaviour. No
+   further variation across crown, body, and brim. **The family-to-family
+   ratios are provisional and await crochet-expert approval** — see below.
 3. **Crown dome**: modelled as a hemispherical cap,
    `z = dome_height * sqrt(max(0, 1 - (r/r_max)^2))`, where
    `dome_height = r_max * 0.6`. Chosen for visual continuity with the body
@@ -38,6 +43,32 @@ Documented assumptions (all analytical, none measured or simulated):
 
 None of this feeds back into `engine`/`validation` — this package is a
 one-way, read-only consumer of the compiled `Pattern` and its `StitchGraph`.
+
+### Stitch-family row-height ratios (`stitch_heights.py`)
+
+`STITCH_HEIGHT_RATIOS` gives each family a relative worked height against
+`sc = 1.0`: `sc` 1.0, `hdc` 2.0, `dc` 3.0. Only the *ratio between two
+families* is ever read, so the choice of anchor is arbitrary.
+
+**These are provisional, in the sense of `docs/decision-gates.md`, and
+require crochet-expert approval before being treated as settled.** They are
+the standard US turning-chain counts (`sc` 1 chain, `hdc` 2, `dc` 3) — the
+conventional published statement of relative stitch height, *not* a measured
+fabric proportion. Real worked `dc` is commonly shorter than three times an
+`sc`. The convention was chosen over inventing a plausible-looking decimal
+precisely because it is attributable: a reviewer can disagree with a named
+convention, whereas an invented `2.4` would look authoritative while being
+unfounded.
+
+A round's family is its **dominant** family — the one producing the most
+stitches, ties breaking toward first appearance in operation order — because
+the layout places a whole round at one `z`. This reads structured operation
+fields only, never rendered text.
+
+Any pattern where the ratios actually change a position (i.e. any round not
+worked in the gauge's own family) also emits a `GeometryDocument.warnings`
+entry naming the affected families and restating the provisional status.
+A single-family pattern emits no such warning.
 
 ## Coordinate frames (`frames.py`)
 

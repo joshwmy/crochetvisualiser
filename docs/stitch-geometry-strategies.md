@@ -117,11 +117,16 @@ All three share one builder (`buildPlainStitchPaths`): attach → post →
 | hdc (`hdc.ts`) | 0.85 | 1 |
 | dc (`dc.ts`) | 1.2 | 2 |
 
-**Deliberate, documented cosmetic exaggeration**: the underlying stitch
-*position* comes unchanged from the backend's uniform-row-height layout
-(a separate, already-documented limitation — see "Known limitations"
-below); only the locally-drawn curve between a visually-lowered "attach"
-point and the stitch's real position varies by type. This is enough to make
+**Deliberate, documented cosmetic exaggeration**: these `heightFactor`
+values are frontend curve-shaping numbers, chosen to make the three
+families visually distinguishable — they are **not** the backend's
+`STITCH_HEIGHT_RATIOS` (`geometry/stitch_heights.py`, sc 1 / hdc 2 / dc 3),
+carry no claim about real stitch proportion, and must not be read as one.
+The backend now does scale a round's *position* by stitch family relative
+to the gauge's family, but that is a separate, round-level decision made
+before this layer runs; within a stitch, only the locally-drawn curve
+between a visually-lowered "attach" point and the stitch's real
+backend-computed position varies by type. This is enough to make
 sc/hdc/dc visually distinguishable (a dc's yarn path visibly wraps twice and
 rises higher than an sc's) without touching the geometry-generation
 backend or its fingerprinted output.

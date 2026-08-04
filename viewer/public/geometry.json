@@ -29484,7 +29484,7 @@
     "stitches_per_cm": 1.6,
     "yarn_diameter_cm": 0.3125
   },
-  "geometry_fingerprint": "354faef666a50347e16cd6d47d3ca980b63a41671bedff982ea585db9f1d8139",
+  "geometry_fingerprint": "65d7baa682638d6945cef63b46924b58349becf9d46bc2f1a0929d56d8e99b9f",
   "graph_fingerprint": "31ccaf58eafeaed657d2f6283567286d861da8d17364f289c5a5c608558ff325",
   "measurements": {
     "max_circumference_cm": 50.0,
@@ -100002,7 +100002,7 @@
   "units": "cm",
   "warnings": [
     "Radius is derived from stitch count and gauge, treating each round as a perfect circle; it is not a measurement of a physical object.",
-    "Row height is constant per round across crown, body, and brim.",
+    "Row height is one round gauge unit, scaled per round by the dominant stitch family's height relative to the family the gauge was measured in; it does not otherwise vary across crown, body, and brim.",
     "The crown is modelled as a hemispherical cap for visual continuity, not derived from the increase schedule's actual curvature.",
     "Yarn diameter is a visual default (half a stitch width) unless overridden; it is not a measured yarn property."
   ],

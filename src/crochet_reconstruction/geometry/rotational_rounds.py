@@ -12,10 +12,16 @@ Documented geometric assumptions (all analytical, not measured or simulated):
    ``stitch_count / stitches_per_cm``, and radius as ``circumference / 2π``
    (treats the round as a perfect circle of evenly-spaced stitches — real
    fabric is not perfectly circular, especially near the increases).
-2. **Row height**: constant ``1 / rounds_per_cm`` per round, applied
-   uniformly across crown, body, and brim — real crochet fabric can compress
-   or stretch slightly differently across a curved crown vs. a flat body,
-   which this ignores.
+2. **Row height**: ``1 / rounds_per_cm``, scaled by the round's dominant
+   stitch family relative to the family the gauge was measured in (see
+   ``geometry/stitch_heights.py``) — so a ``dc`` round is spaced further
+   than an ``sc`` round at the same round gauge, instead of every family
+   sharing one uniform height. A round worked in the gauge's own family
+   scales by exactly 1.0. The scaling ratios are the standard turning-chain
+   convention and are **provisional, awaiting expert approval**; any pattern
+   they actually affect also emits a warning. Real crochet fabric can also
+   compress or stretch differently across a curved crown vs. a flat body,
+   which this still ignores.
 3. **Crown dome shape**: modelled as a hemispherical cap,
    ``z = dome_height * sqrt(max(0, 1 - (r / r_max)^2))``, where
    ``dome_height = r_max * DOME_FLATNESS_FACTOR``. This is a visual
@@ -48,6 +54,7 @@ from crochet_reconstruction.domain.gauge import Gauge
 from crochet_reconstruction.domain.rounds import Component
 from crochet_reconstruction.geometry.frames import frame_to_quaternion, radial_frame
 from crochet_reconstruction.geometry.models import StitchGeometry, Vec3
+from crochet_reconstruction.geometry.stitch_heights import scaled_row_heights
 from crochet_reconstruction.graph.models import StitchGraph, StitchNode
 
 DOME_FLATNESS_FACTOR = 0.6
@@ -70,7 +77,7 @@ def _round_placements(
 ) -> dict[tuple[str, int], _RoundPlacement]:
     stitches_per_cm = float(gauge.stitches_per_cm)
     rounds_per_cm = float(gauge.rounds_per_cm)
-    row_height_cm = 1.0 / rounds_per_cm
+    row_heights_cm = scaled_row_heights(components, gauge.stitch_family, 1.0 / rounds_per_cm)
 
     radii: dict[tuple[str, int], float] = {}
     counts: dict[tuple[str, int], int] = {}
@@ -101,7 +108,7 @@ def _round_placements(
         elif key in crown_keys:
             z_cm = 0.0
         else:
-            running_z -= row_height_cm
+            running_z -= row_heights_cm[key]
             z_cm = running_z
         placements[key] = _RoundPlacement(radius_cm=radius_cm, z_cm=z_cm, stitch_count=counts[key])
 
