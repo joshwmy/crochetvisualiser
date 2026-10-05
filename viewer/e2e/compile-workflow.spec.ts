@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { hasSelection, openPanelTab, skipOnboarding } from "./helpers";
 
 const AMIGURUMI_EXAMPLE = `Round 1: 6 sc in magic ring [6]
 Round 2: inc in each stitch around [12]
@@ -61,8 +62,7 @@ async function selectAnyStitch(page: Page): Promise<string> {
   ];
   for (const [dx, dy] of offsets) {
     await canvas.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
-    const content = page.locator("#inspector-content dd").first();
-    if (await content.isVisible().catch(() => false)) {
+    if (await hasSelection(page)) {
       const stitchId = await page.locator("#inspector-content dd").first().textContent();
       if (stitchId) return stitchId;
     }
@@ -100,9 +100,8 @@ async function clickCanvasAt(page: Page, dx: number, dy: number): Promise<string
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas has no bounding box");
   await canvas.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
-  const content = page.locator("#inspector-content dd").first();
-  if (await content.isVisible().catch(() => false)) {
-    return content.textContent();
+  if (await hasSelection(page)) {
+    return page.locator("#inspector-content dd").first().textContent();
   }
   return null;
 }
@@ -138,6 +137,7 @@ async function setRangeInput(page: Page, id: string, value: string): Promise<voi
 
 test.describe("written pattern compile workflow", () => {
   test("compile, select, recompile, and reject invalid input", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
 
     // 1-2: start with viewer, paste example.
@@ -192,6 +192,7 @@ test.describe("written pattern compile workflow", () => {
 
 test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quality", () => {
   test("full crochet-specific inspection workflow across a recompile", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
 
     // 1-2: load example (pre-filled) and compile through the real backend.
@@ -199,11 +200,13 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     await expect(page.locator("#compile-status")).toHaveText(/Compiled successfully/);
 
     // 3: switch to yarn (crochet-specific procedural geometry) mode.
+    await openPanelTab(page, "appearance");
     await page.selectOption("#view-mode", "yarn");
     await expect(page.locator("#view-mode")).toHaveValue("yarn");
 
     // 3b: enable path mode *before* selecting anything — the role picker
     // must not offer a real role with nothing selected to inspect.
+    await openPanelTab(page, "analyse");
     await page.check("#path-mode-toggle");
     await expect(page.locator("#path-role-select")).toBeDisabled();
     await expect(page.locator("#path-role-select option")).toHaveCount(1);
@@ -211,7 +214,9 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     // 4: select a stitch in yarn mode.
     const { stitchId: firstHitId } = await selectAnyStitchViaProbe(page);
     expect(firstHitId).toMatch(/^piece-r\d+-s\d+$/);
-    await expect(page.locator("#inspector-content")).toBeVisible();
+    // The full detail list is folded into "All stitch details"; the headline
+    // is what shows a stitch is selected.
+    await expect(page.locator("#inspector-headline")).toBeVisible();
 
     // 5: show its parents — the "Parents" row must be present and populated
     // (either a real parent id or the magic-ring placeholder).
@@ -280,6 +285,7 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
     expect(clippingDebug.selectionMarkerClipped).toBe(false);
 
     // 8: add a measurement between two distinct stitches.
+    await openPanelTab(page, "measure");
     await page.check("#measurement-mode-toggle");
     await expect(page.locator("#measurement-status")).toHaveText(/Click a stitch/);
     let skip = 0;
@@ -326,6 +332,7 @@ test.describe("scientific viewer: yarn mode, x-ray, clipping, measurement, quali
 
     // 9: change the yarn quality level; the store must reflect the new value
     // (a prior bug left the store stale after setQuality — this guards it).
+    await openPanelTab(page, "appearance");
     await page.selectOption("#quality-select", "low");
     const qualityAfterChange = await page.evaluate(
       () => (window as unknown as { __app: { getStore(): { get(): { quality: string } } } }).__app.getStore().get()

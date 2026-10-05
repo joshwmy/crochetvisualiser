@@ -19,3 +19,5 @@ viewer/playwright-report/
 viewer/blob-report/
 viewer/tsconfig.tsbuildinfo
 .claude/scheduled_tasks.lock
+# Vite's dependency pre-bundle cache
+.vite/

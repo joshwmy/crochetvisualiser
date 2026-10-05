@@ -89,3 +89,32 @@ describe("buildTubeGeometry", () => {
     expect(high).toBeGreaterThan(low);
   });
 });
+
+describe("buildTubeGeometry UVs", () => {
+  const points = [0, 1, 2, 3].map((i) => new THREE.Vector3(i, 0, 0));
+  const frames = computeParallelTransportFrames(points, false);
+  const radialSegments = 6;
+  const radius = 0.1;
+  const geometry = buildTubeGeometry(points, frames, radius, radialSegments, false);
+  const ringSize = radialSegments + 1;
+
+  it("adds one seam vertex per ring, with v running 0..1 around it", () => {
+    const uv = geometry.getAttribute("uv");
+    expect(uv.count).toBe(points.length * ringSize);
+    expect(uv.getY(0)).toBe(0);
+    expect(uv.getY(radialSegments)).toBeCloseTo(1);
+  });
+
+  it("places the seam vertex exactly on the ring's first vertex", () => {
+    const position = geometry.getAttribute("position");
+    for (const axis of ["getX", "getY", "getZ"] as const) {
+      expect(position[axis](radialSegments)).toBeCloseTo(position[axis](0));
+    }
+  });
+
+  it("measures u in tube circumferences of arc length", () => {
+    const uv = geometry.getAttribute("uv");
+    const lastRingFirstVertex = (points.length - 1) * ringSize;
+    expect(uv.getX(lastRingFirstVertex)).toBeCloseTo(3 / (2 * Math.PI * radius));
+  });
+});

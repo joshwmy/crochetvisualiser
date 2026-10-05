@@ -17,7 +17,7 @@ own, separate deployment guide (`docs/portal-deployment.md`) and its own
 | Compile API | **Deployed** | <https://crochet-visualiser-api.onrender.com> (Render free tier, from `render.yaml`) |
 
 The live frontend is built with `VITE_API_BASE_URL` pointing at the Render
-service, so "Interpret and render" and the SVG-diagram workflow work end to
+service, so "Render in 3D" and the SVG-diagram workflow work end to
 end. The free instance sleeps when idle — see the cold-start notes under "After the API is live".
 
 ## Frontend: GitHub Pages

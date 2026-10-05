@@ -11,20 +11,67 @@ Three.js `MeshPhysicalMaterial` entry).
 "glitter" — all of which read as plastic/wet rather than soft fibre.
 **What actually gives yarn its look**: sheen (a thin-fibre-like grazing
 highlight, `sheen`/`sheenRoughness`/`sheenColor`) combined with high
-`roughness` (0.92 default) so specular highlights stay soft and wide rather
+`roughness` (0.85 default) so specular highlights stay soft and wide rather
 than sharp and mirror-like.
 
 ```
-color:          0xcbb89a (default warm neutral yarn tone)
-roughness:      0.92
+color:          vertex colours (see "Yarn colour palette" below)
+roughness:      0.85
 metalness:      0
-sheen:          0.65
-sheenRoughness: 0.55
-sheenColor:     0xffffff
-envMapIntensity: 0.6
+sheen:          0.35
+sheenRoughness: 0.5
+sheenColor:     0xfff0ea
+envMapIntensity: 0.9
+bumpMap:        procedural 3-ply twist, bumpScale 14
 clearcoat:      0
 transmission:   0
 ```
+
+Sheen is deliberately low and warm: at 0.65 with a white sheen colour every
+yarn colour bleached toward grey-pink under the soft-studio environment.
+
+### Ply texture
+
+Tubes carry UVs (`parallel_transport_tube.ts`): u runs along the yarn in
+units of tube circumference, v runs once around it, with one duplicated seam
+vertex per ring so the texture wraps cleanly (triangle count unchanged). A
+128×128 `DataTexture` of three strands advancing equally in u and v gives a
+~45° twist, close to a worsted yarn's ply angle, and is used as a bump map.
+That relief is what makes a tube read as yarn rather than wire. Bump depth
+was tuned by eye: below ~8 the plies vanish into hairlines, above ~25 they
+read as zebra-striped rope on high-DPI screens.
+
+### Environment
+
+`applyStudioEnvironment` (`scene/scene.ts`) gives the scene a PMREM-filtered
+`RoomEnvironment`. Without an environment map, sheen and `envMapIntensity`
+have nothing to reflect and fibre looks like flat plastic. Each lighting
+preset sets its own `scene.environmentIntensity`.
+
+### Software-renderer fallback
+
+On CPU-rasterised WebGL (headless Chromium's SwiftShader, llvmpipe, VMs,
+blocklisted GPU drivers) `isSoftwareRenderer` (`rendering/renderer.ts`)
+turns both the environment map and the ply bump map off. Measured headless
+on the 108-stitch example at 1280×720: ~930 ms/frame with both, ~775 ms with
+only the bump removed, ~245 ms with both removed (about where it was before
+either existed). Without the environment map the hemisphere light takes over
+its share (`ENVIRONMENT_TO_HEMISPHERE` in `scene/scene.ts`) so colours don't
+go muddy. On a real GPU (Intel Iris Xe, checked) both stay on.
+
+This also means the Playwright suites, which run on SwiftShader, exercise the
+fallback path; their visual baselines show the flatter software look, not the
+GPU one.
+
+### Yarn colour palette
+
+The Look tab offers seven muted, real-yarn tones (`YARN_COLOURS`, default
+dusty rose) plus a "Highlight increases & decreases" toggle, off by default
+so a first look shows a one-colour piece the way it would really be
+crocheted. `applyYarnPalette` (`build_yarn_paths.ts`) rewrites the merged
+mesh's vertex colours in place from a per-vertex stitch-kind array, so
+changing colour never rebuilds geometry, and the palette survives
+recompiles and quality changes.
 
 ### Semantic yarn colors
 
@@ -88,14 +135,16 @@ rebuild.
 
 | Preset | Purpose | Key intensity | Fill intensity | Rim intensity |
 |---|---|---|---|---|
-| `neutral_laboratory` (default) | Even, shadow-light illumination so stitch structure reads clearly regardless of yarn color, view mode, or clipping state — per the brief's "avoid highly dramatic cinematic lighting that obscures stitch structure" | 1.5 | 0.4 (cool blue fill) | 0.5 |
-| `soft_studio` | Warmer, slightly softer contrast — a more presentation-friendly look without sacrificing readability | 1.1 | 0.6 (warm fill) | 0.3 |
+| `soft_studio` (default) | Warm, gentle light over a transparent backdrop (the page's CSS stage gradient shows through), so the model reads as a crocheted object | 1.0 | 0.3 (warm fill) | 0.6 |
+| `neutral_laboratory` | Even, shadow-light illumination so stitch structure reads clearly regardless of yarn color, view mode, or clipping state — per the brief's "avoid highly dramatic cinematic lighting that obscures stitch structure" | 1.5 | 0.4 (cool blue fill) | 0.5 |
 | `high_contrast_inspection` | Strong key light, minimal fill, strong rim — maximises visible surface detail (post wraps, loop edges) for close inspection at the cost of a harsher overall look | 2.2 | 0.15 | 0.9 |
 
-`neutral_laboratory` is the default specifically because it's the least
-likely of the three to visually obscure a real geometry problem behind a
-dramatic lighting choice — the other two are legitimate alternatives, not
-"better" defaults.
+`soft_studio` became the default in the frontend makeover: new users could
+not tell the original dark-laboratory render was crochet at all. It is still
+gentle rather than dramatic, and `neutral_laboratory` remains one click away
+in the Look tab as the least likely of the three to hide a real geometry
+problem behind a lighting choice. The floor grid and axes are hidden by
+default for the same reason, behind "Show floor grid & axes".
 
 ## Quality presets (`viewer/src/geometry/build_yarn_paths.ts`)
 

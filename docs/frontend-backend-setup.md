@@ -17,9 +17,10 @@ npm run dev             # http://localhost:5173
 ```
 
 Open `http://localhost:5173`. The viewer loads the static
-`viewer/public/geometry.json` fixture on startup (a demo/fallback, not
-required — see below), and the left panel's pattern editor lets you compile
-and load a live model without regenerating that fixture.
+`viewer/public/example-geometry.json` fixture on startup: the editor's
+bundled example pattern, precompiled, so what you first see matches the text
+in the editor and needs no backend. The left panel's pattern editor then
+compiles and loads live models.
 
 CORS: the backend's default `VISUALIZER_CORS_ORIGINS` already includes
 `http://localhost:5173`, matching Vite's default dev port. If you run Vite
@@ -42,8 +43,12 @@ plain deployment configuration, documented in `docs/compile-api.md`.
 
 ## The static fixture's role
 
+`viewer/public/example-geometry.json` is the compile API's `geometry` output
+for `viewer/src/examples.ts`' `AMIGURUMI_EXAMPLE`; regenerate it whenever the
+example or the geometry pipeline changes. The larger
 `viewer/public/geometry.json` (generated via
-`python -m crochet_reconstruction.cli generate-geometry`) remains useful as:
+`python -m crochet_reconstruction.cli generate-geometry`) is no longer loaded
+at startup but remains useful as:
 
 - a **demo** that works with zero backend running (open the page, look at a
   beanie, rotate/clip/animate it — nothing requires the API for this),
@@ -54,7 +59,7 @@ plain deployment configuration, documented in `docs/compile-api.md`.
   the backend.
 
 It is explicitly **not** the only way to use the viewer — the pattern
-editor's "Interpret and render" workflow replaces it with a freshly compiled
+editor's "Render in 3D" workflow replaces it with a freshly compiled
 model without any manual fixture regeneration step, which was this slice's
 whole point.
 

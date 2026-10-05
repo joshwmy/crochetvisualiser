@@ -50,4 +50,20 @@ describe("applyClippingToMaterials", () => {
     applyClippingToMaterials(materials, null);
     for (const m of materials) expect(m.clippingPlanes).toEqual([]);
   });
+
+  it("flags a shader update only when the plane count changes, not when the plane moves", () => {
+    const material = new THREE.MeshBasicMaterial();
+    const start = material.version;
+    applyClippingToMaterials([material], new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
+    expect(material.version).toBe(start + 1);
+
+    applyClippingToMaterials([material], new THREE.Plane(new THREE.Vector3(0, 0, 1), 2));
+    applyClippingToMaterials([material], new THREE.Plane(new THREE.Vector3(1, 0, 0), -1));
+    expect(material.version).toBe(start + 1);
+
+    applyClippingToMaterials([material], null);
+    expect(material.version).toBe(start + 2);
+    applyClippingToMaterials([material], null);
+    expect(material.version).toBe(start + 2);
+  });
 });

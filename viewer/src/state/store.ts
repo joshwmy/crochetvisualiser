@@ -108,7 +108,9 @@ export function createInitialState(stitchCount: number, quality: QualityName = "
     roundRange: null,
     hiddenComponentIds: new Set(),
     opacity: 1,
-    viewMode: "structural",
+    // Yarn first: it is what makes the model read as crochet. Structural
+    // stays one click away for analysis.
+    viewMode: "yarn",
     cameraMode: "perspective",
     clipping: { enabled: false, axis: "z", offset: 0, invert: false },
     animationIndex: stitchCount,

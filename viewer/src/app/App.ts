@@ -2,18 +2,32 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { GeometryDocument } from "../types/geometry";
 import { validateGeometry } from "../geometry/load";
-import { createScene, applyLightingPreset, type LightingPreset } from "../scene/scene";
+import {
+  applyLightingPreset,
+  applyStudioEnvironment,
+  createScene,
+  DEFAULT_LIGHTING_PRESET,
+  setHelpersVisible,
+  type LightingPreset,
+} from "../scene/scene";
 import { CameraRig, type ViewPreset } from "../camera/camera";
-import { createRenderer } from "../rendering/renderer";
+import { createRenderer, isSoftwareRenderer } from "../rendering/renderer";
 import { buildStructuralScene, commitMatrixUpdates, setInstanceHidden } from "../geometry/build_meshes";
 import type { StructuralScene } from "../geometry/build_meshes";
 import {
+  applyYarnPalette,
   buildYarnPathScene,
   defaultQualityFor,
   QUALITY_PRESETS,
+  type YarnPalette,
+  type YarnPathComponentMesh,
   type YarnPathScene,
 } from "../geometry/build_yarn_paths";
-import { applyYarnMaterialState } from "../materials/yarn_material";
+import {
+  applyYarnMaterialState,
+  DEFAULT_YARN_COLOUR,
+  yarnColourHex,
+} from "../materials/yarn_material";
 import { Picker } from "../selection/picking";
 import { buildHitProxyScene, disposeHitProxyScene } from "../selection/hit_proxies";
 import { SelectionHighlighter } from "../selection/highlight";
@@ -74,6 +88,16 @@ export class App {
   private graphOverlayObject: THREE.LineSegments | null = null;
   private measurementLines: Map<string, THREE.Line> = new Map();
   private annotationMarkers: Map<string, THREE.LineSegments> = new Map();
+  /** Display preference, like view mode: survives recompiles and quality
+   * rebuilds. Shaping highlights start off so a first look shows a
+   * one-colour piece, the way it would actually be crocheted. */
+  /** Environment map and ply bump map. Off on CPU-rasterised WebGL, where
+   * they cost ~4x the frame time (see isSoftwareRenderer). */
+  private richShading = true;
+  private yarnPalette: YarnPalette = {
+    main: yarnColourHex(DEFAULT_YARN_COLOUR),
+    highlightShaping: false,
+  };
 
   constructor(canvas: HTMLCanvasElement, doc: GeometryDocument, jsonSizeBytes: number) {
     this.canvas = canvas;
@@ -82,6 +106,10 @@ export class App {
 
     this.scene = createScene();
     this.renderer = createRenderer(canvas);
+    this.richShading = !isSoftwareRenderer(this.renderer);
+    if (this.richShading) applyStudioEnvironment(this.scene, this.renderer);
+    // Re-light now that it is known whether an environment map exists.
+    applyLightingPreset(this.scene, DEFAULT_LIGHTING_PRESET);
     this.cameraRig = new CameraRig(canvas, canvas.clientWidth / canvas.clientHeight || 1);
     this.highlighter = new SelectionHighlighter(this.scene);
 
@@ -194,7 +222,10 @@ export class App {
     for (const group of hitProxies.groups) this.scene.add(group.mesh);
 
     const yarnScene = buildYarnPathScene(doc, QUALITY_PRESETS[quality]);
-    for (const comp of yarnScene.components) this.scene.add(comp.mesh);
+    for (const comp of yarnScene.components) {
+      this.prepareYarnComponent(comp);
+      this.scene.add(comp.mesh);
+    }
     const genEnd = performance.now();
 
     let triangles = 0;
@@ -223,6 +254,7 @@ export class App {
     const previousYarn = this.yarnScene;
     const rebuilt = buildYarnPathScene(this.doc, QUALITY_PRESETS[quality]);
     for (const comp of rebuilt.components) {
+      this.prepareYarnComponent(comp);
       this.scene.add(comp.mesh);
       comp.mesh.visible = this.store.get().viewMode === "yarn";
     }
@@ -237,6 +269,25 @@ export class App {
 
   setLightingPreset(preset: LightingPreset): void {
     applyLightingPreset(this.scene, preset);
+  }
+
+  private prepareYarnComponent(comp: YarnPathComponentMesh): void {
+    applyYarnPalette(comp, this.yarnPalette);
+    if (!this.richShading) (comp.mesh.material as THREE.MeshPhysicalMaterial).bumpMap = null;
+  }
+
+  getYarnPalette(): YarnPalette {
+    return { ...this.yarnPalette };
+  }
+
+  setYarnPalette(patch: Partial<YarnPalette>): void {
+    this.yarnPalette = { ...this.yarnPalette, ...patch };
+    for (const comp of this.yarnScene.components) applyYarnPalette(comp, this.yarnPalette);
+  }
+
+  /** Floor grid and axes — measuring aids, hidden by default. */
+  setHelpersVisible(visible: boolean): void {
+    setHelpersVisible(this.scene, visible);
   }
 
   private createTimeline(doc: GeometryDocument): ConstructionTimeline {

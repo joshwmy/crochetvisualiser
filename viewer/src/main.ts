@@ -16,6 +16,15 @@ import type { SegmentRole } from "./geometry/stitch_paths/types";
 import { renderDiagramOverlay, CONFIDENCE_LEGEND, nativeViewport } from "./diagram/svg_overlay";
 import type { DiagramViewport } from "./diagram/svg_overlay";
 import type { DiagramRelationship, DiagramSymbol } from "./types/diagram";
+import {
+  renderPieceStats,
+  renderStatGrid,
+  stitchHeadlineHtml,
+  wireOnboarding,
+  wirePanelTabs,
+  wireStageHint,
+  wireYarnAppearance,
+} from "./ui/shell";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const errorBanner = document.getElementById("viewer-error") as HTMLDivElement;
@@ -44,7 +53,10 @@ async function main(): Promise<void> {
   // BASE_URL, not a leading "/": on a project GitHub Pages site the app is
   // served from /<repo>/, where an absolute "/geometry.json" 404s. Vite
   // guarantees BASE_URL ends with a slash, and it is "/" everywhere else.
-  const geometryUrl = `${import.meta.env.BASE_URL}geometry.json`;
+  // The bundled example pattern, precompiled, so what loads first matches
+  // the editor's text and needs no backend. geometry.json (1640 stitches)
+  // stays as the benchmark reference fixture (tests/benchmark.test.ts).
+  const geometryUrl = `${import.meta.env.BASE_URL}example-geometry.json`;
   let response: Response;
   try {
     response = await fetch(geometryUrl);
@@ -98,6 +110,10 @@ async function main(): Promise<void> {
   wireStrictMode(app, controller, diagramController);
   wireInputModeTabs();
   wireDiagramWorkflow(app, diagramController);
+  wirePanelTabs();
+  wireOnboarding();
+  wireStageHint(canvas);
+  wireYarnAppearance(app);
   refreshDocDependentUI(app);
 }
 
@@ -106,6 +122,7 @@ async function main(): Promise<void> {
  * list, component list, stitch count, and performance numbers entirely. */
 function refreshDocDependentUI(app: App): void {
   wireInfoPanel(app);
+  renderPieceStats(app.getDoc());
   wireVisibilityControls(app);
   wirePerformancePanel(app);
   qs<HTMLSelectElement>("quality-select").value = app.getStore().get().quality;
@@ -132,6 +149,7 @@ function wireInfoPanel(app: App): void {
 
 function wireViewControls(app: App): void {
   const viewMode = qs<HTMLSelectElement>("view-mode");
+  viewMode.value = app.getStore().get().viewMode;
   viewMode.addEventListener("change", () => {
     app.getStore().set({ viewMode: viewMode.value as ViewerState["viewMode"] });
   });
@@ -215,6 +233,8 @@ function wireVisibilityControls(app: App): void {
   const doc = app.getDoc();
   const componentIds = [...new Set(doc.stitches.map((s) => s.component_id))];
   const container = qs<HTMLDivElement>("component-toggles");
+  // A single-part pattern has nothing to toggle — a lone checkbox is noise.
+  container.hidden = componentIds.length < 2;
   container.innerHTML = componentIds
     .map((id) => `<label><input type="checkbox" checked data-component="${id}" /> ${id}</label>`)
     .join("");
@@ -227,7 +247,7 @@ function wireVisibilityControls(app: App): void {
     if (roundKeys.has(key)) continue;
     roundKeys.add(key);
     options.push(
-      `<option value="${key}">${stitch.component_id} round ${stitch.round_index}</option>`,
+      `<option value="${key}">${componentIds.length > 1 ? `${stitch.component_id} · ` : ""}Round ${stitch.round_index}</option>`,
     );
   }
   roundSelect.innerHTML = options.join("");
@@ -318,6 +338,8 @@ function wireClippingControls(app: App): void {
 
 function wireInspector(app: App): void {
   const empty = qs<HTMLParagraphElement>("inspector-empty");
+  const headline = qs<HTMLParagraphElement>("inspector-headline");
+  const details = qs<HTMLDetailsElement>("inspector-details");
   const content = qs<HTMLDListElement>("inspector-content");
   const actions = qs<HTMLDivElement>("inspector-actions");
   const warningsEl = qs<HTMLUListElement>("yarn-warnings");
@@ -325,6 +347,8 @@ function wireInspector(app: App): void {
   app.getStore().subscribe((state) => {
     if (!state.selectedStitchId) {
       empty.hidden = false;
+      headline.hidden = true;
+      details.hidden = true;
       content.hidden = true;
       actions.hidden = true;
       warningsEl.innerHTML = "";
@@ -335,8 +359,11 @@ function wireInspector(app: App): void {
     empty.hidden = true;
     content.hidden = false;
     actions.hidden = false;
+    details.hidden = false;
+    headline.hidden = false;
 
     const doc = app.getDoc();
+    headline.innerHTML = stitchHeadlineHtml(stitch, doc);
     const children = doc.stitches.filter((s) => s.parent_stitch_ids.includes(stitch.stitch_id));
     const neighborEdges = doc.edges.filter(
       (e) =>
@@ -689,7 +716,9 @@ function wireCompileWorkflow(app: App, controller: CompileController): void {
   const clearButton = qs<HTMLButtonElement>("clear-button");
   const status = qs<HTMLParagraphElement>("compile-status");
   const summaryEl = qs<HTMLDListElement>("compile-summary");
+  const summarySection = qs<HTMLElement>("summary-section");
   const diagnosticsEl = qs<HTMLUListElement>("diagnostics-list");
+  const diagnosticsSection = qs<HTMLElement>("diagnostics-section");
 
   source.value = AMIGURUMI_EXAMPLE;
 
@@ -721,22 +750,23 @@ function wireCompileWorkflow(app: App, controller: CompileController): void {
     compileButton.disabled = state.status === "compiling";
 
     if (state.status === "success" && state.summary) {
-      summaryEl.hidden = false;
-      const rows: [string, string][] = [
-        ["Sections", String(state.summary.sectionCount)],
+      summarySection.hidden = false;
+      renderStatGrid(summaryEl, [
+        ["Rounds", String(state.summary.sectionCount)],
         ["Stitches", String(state.summary.stitchCount)],
-        ["Components", String(state.summary.componentCount)],
-      ];
-      summaryEl.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+        ["Parts", String(state.summary.componentCount)],
+      ]);
       refreshDocDependentUI(app);
     } else if (state.status !== "compiling") {
-      summaryEl.hidden = true;
+      summarySection.hidden = true;
     }
 
     if (state.errorMessage) {
+      diagnosticsSection.hidden = false;
       diagnosticsEl.innerHTML = `<li data-severity="error">${SEVERITY_LABEL.error}: ${state.errorMessage}</li>`;
       return;
     }
+    diagnosticsSection.hidden = state.diagnostics.length === 0;
 
     diagnosticsEl.innerHTML = state.diagnostics
       .map((d) => {
@@ -1095,7 +1125,7 @@ function wireDiagramWorkflow(app: App, controller: DiagramController): void {
         ["Low confidence", String(state.summary.lowConfidenceCount)],
         ["Ready to compile", state.summary.readyToCompile ? "Yes" : "No — resolve errors below"],
       ];
-      summaryEl.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+      renderStatGrid(summaryEl, rows);
     } else {
       summarySection.hidden = true;
     }
