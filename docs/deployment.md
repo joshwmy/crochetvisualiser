@@ -14,14 +14,11 @@ own, separate deployment guide (`docs/portal-deployment.md`) and its own
 | Piece | Status | Where |
 |---|---|---|
 | Frontend | **Deployed** | <https://joshwmy.github.io/crochetvisualiser/> |
-| Compile API | **Not deployed** | Config ready: `Dockerfile.api`, `render.yaml` |
+| Compile API | **Deployed** | <https://crochet-visualiser-api.onrender.com> (Render free tier, from `render.yaml`) |
 
-Until the API is deployed, the deployed site loads and is fully interactive
-against the bundled fixture — orbit, clipping, round isolation, construction
-animation, measurement, annotations, stitch inspection — but **"Interpret and
-render" and the SVG-diagram workflow will fail with a network error**, because
-there is no backend at `VITE_API_BASE_URL`. That is a real, visible limitation
-of the current deployment, not a bug.
+The live frontend is built with `VITE_API_BASE_URL` pointing at the Render
+service, so "Interpret and render" and the SVG-diagram workflow work end to
+end. The free instance sleeps when idle — see the cold-start notes under "After the API is live".
 
 ## Frontend: GitHub Pages
 
@@ -31,8 +28,16 @@ branch is built locally and pushed.
 
 ```bash
 cd viewer
-VITE_BASE_PATH=/crochetvisualiser/ npm run build
+MSYS_NO_PATHCONV=1 \
+VITE_BASE_PATH=/crochetvisualiser/ \
+VITE_API_BASE_URL=https://crochet-visualiser-api.onrender.com \
+npm run build
 ```
+
+`MSYS_NO_PATHCONV=1` is for Git Bash on Windows, which otherwise rewrites
+`/crochetvisualiser/` into `C:/Program Files/Git/crochetvisualiser/`. That
+once shipped a build whose every asset 404'd; `vite.config.ts` now refuses
+any base path that is not `/<something>/`. It is harmless elsewhere.
 
 `VITE_BASE_PATH` matters. A *project* Pages site is served from `/<repo>/`,
 not a domain root, so every asset URL must carry that prefix. Two things
@@ -70,6 +75,10 @@ curl -sI https://joshwmy.github.io/crochetvisualiser/geometry.json | head -1
 curl -s  https://joshwmy.github.io/crochetvisualiser/ | grep -o 'src="[^"]*"'
 ```
 
+The `src` must start with `/crochetvisualiser/assets/`. Pages serves HTML with
+a 10-minute cache, so a browser that loaded the previous deploy can keep
+running it for a while — append `?v=<anything>` to check the new one.
+
 ## Backend: the compile API
 
 `Dockerfile.api` builds it. Deliberately separate from the repository's
@@ -97,7 +106,7 @@ Two changes, both required, in this order:
    ```bash
    cd viewer
    VITE_BASE_PATH=/crochetvisualiser/ \
-   VITE_API_BASE_URL=https://your-api.onrender.com \
+   VITE_API_BASE_URL=https://crochet-visualiser-api.onrender.com \
    npm run build
    ```
 
@@ -108,8 +117,8 @@ Then confirm the round trip actually works from the deployed origin, rather
 than assuming CORS is right:
 
 ```bash
-curl -s https://your-api.onrender.com/healthz
-curl -s -X POST https://your-api.onrender.com/api/visualizer/compile \
+curl -s https://crochet-visualiser-api.onrender.com/healthz
+curl -s -X POST https://crochet-visualiser-api.onrender.com/api/visualizer/compile \
   -H 'Content-Type: application/json' \
   -d '{"source":"Round 1: 6 sc in magic ring [6]\n"}' | head -c 200
 ```

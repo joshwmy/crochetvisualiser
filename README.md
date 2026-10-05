@@ -1,10 +1,9 @@
 # crochet-reconstruction — deterministic engine and scientific 3D visualiser
 
-**Live demo: <https://joshwmy.github.io/crochetvisualiser/>** — the viewer
-running against its bundled example model. The compile API is not deployed
-yet, so "Interpret and render" and the SVG-diagram workflow will fail there;
-everything driven by the loaded model (orbit, clipping, round isolation,
-construction animation, measurement, annotations, stitch inspection) works.
+**Live demo: <https://joshwmy.github.io/crochetvisualiser/>** — the full
+viewer, backed by the compile API on Render: paste a written pattern or an
+SVG chart and it compiles to 3D. The API runs on a free instance that sleeps
+when idle, so the first compile after a quiet spell can take up to a minute.
 See [`docs/deployment.md`](docs/deployment.md).
 
 A framework-independent Python engine that generates and validates
