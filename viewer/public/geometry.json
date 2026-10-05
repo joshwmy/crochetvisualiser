@@ -29484,7 +29484,7 @@
     "stitches_per_cm": 1.6,
     "yarn_diameter_cm": 0.3125
   },
-  "geometry_fingerprint": "65d7baa682638d6945cef63b46924b58349becf9d46bc2f1a0929d56d8e99b9f",
+  "geometry_fingerprint": "fe70c745881cbb53161f36ba950cecc483249389bee4bbcae1c5285c25d69720",
   "graph_fingerprint": "31ccaf58eafeaed657d2f6283567286d861da8d17364f289c5a5c608558ff325",
   "measurements": {
     "max_circumference_cm": 50.0,

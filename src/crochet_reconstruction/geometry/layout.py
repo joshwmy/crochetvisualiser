@@ -58,8 +58,27 @@ def _measurements(positions: list[Vec3]) -> GeometryMeasurements:
     )
 
 
+# Floats are hashed at this many decimal places (1e-9 cm), not as raw repr:
+# Windows UCRT and glibc libm disagree by one ulp on some sin/cos/hypot results,
+# which otherwise changes the fingerprint per OS. Hash input only — the emitted
+# document keeps full precision. See docs/canonical-json-audit.md.
+FINGERPRINT_FLOAT_DECIMALS = 9
+
+
+def _quantise_floats(value: object) -> object:
+    if isinstance(value, float):
+        # ``+ 0.0`` folds -0.0 into 0.0 so a tiny negative and a tiny positive
+        # libm residue (e.g. sin(pi)) serialize identically.
+        return round(value, FINGERPRINT_FLOAT_DECIMALS) + 0.0
+    if isinstance(value, dict):
+        return {k: _quantise_floats(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_quantise_floats(v) for v in value]
+    return value
+
+
 def _canonical_json(document: GeometryDocument) -> str:
-    data = document.model_dump(mode="json", exclude={"geometry_fingerprint"})
+    data = _quantise_floats(document.model_dump(mode="json", exclude={"geometry_fingerprint"}))
     return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
 
 
