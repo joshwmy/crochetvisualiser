@@ -37,7 +37,10 @@ function qs<T extends HTMLElement>(id: string): T {
 }
 
 async function main(): Promise<void> {
-  const geometryUrl = "/geometry.json";
+  // BASE_URL, not a leading "/": on a project GitHub Pages site the app is
+  // served from /<repo>/, where an absolute "/geometry.json" 404s. Vite
+  // guarantees BASE_URL ends with a slash, and it is "/" everywhere else.
+  const geometryUrl = `${import.meta.env.BASE_URL}geometry.json`;
   let response: Response;
   try {
     response = await fetch(geometryUrl);

@@ -1,5 +1,12 @@
 # crochet-reconstruction — deterministic engine and scientific 3D visualiser
 
+**Live demo: <https://joshwmy.github.io/crochetvisualiser/>** — the viewer
+running against its bundled example model. The compile API is not deployed
+yet, so "Interpret and render" and the SVG-diagram workflow will fail there;
+everything driven by the loaded model (orbit, clipping, round isolation,
+construction animation, measurement, annotations, stitch inspection) works.
+See [`docs/deployment.md`](docs/deployment.md).
+
 A framework-independent Python engine that generates and validates
 mathematically consistent crochet beanie patterns from typed measurements
 and gauge, plus a scientific 3D viewer that turns a compiled pattern into an

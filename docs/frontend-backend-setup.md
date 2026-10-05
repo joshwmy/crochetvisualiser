@@ -30,7 +30,8 @@ the backend.
 
 | Variable | Side | Default | Purpose |
 |---|---|---|---|
-| `VITE_API_BASE_URL` | frontend (`viewer/.env`) | `http://localhost:8000` | Base URL the browser calls for `/api/visualizer/compile`. |
+| `VITE_API_BASE_URL` | frontend (`viewer/.env`) | `http://localhost:8000` | Base URL the browser calls for `/api/visualizer/compile`. Read at **build** time — changing it needs a rebuild, not just an env edit. |
+| `VITE_BASE_PATH` | frontend (build env) | `/` | Public base path. Only needed when the site is served from a subpath, e.g. a project GitHub Pages site — see `docs/deployment.md`. |
 | `VISUALIZER_CORS_ORIGINS` | backend | `http://localhost:5173` | Comma-separated allow-list of origins permitted to call the API. |
 | `VISUALIZER_MAX_SOURCE_LENGTH` | backend | `50000` | See `docs/compile-api.md`. |
 | `VISUALIZER_ENVIRONMENT` | backend | `development` | Informational. |
@@ -58,6 +59,10 @@ model without any manual fixture regeneration step, which was this slice's
 whole point.
 
 ## Production deployment
+
+**See [`docs/deployment.md`](deployment.md)** for the actual deployment —
+where the frontend is live, the `Dockerfile.api`/`render.yaml` backend config,
+and the CORS/base-path steps. The generic shape is below.
 
 The frontend build and backend are independently deployable static/API
 services:

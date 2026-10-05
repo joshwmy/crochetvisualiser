@@ -1,0 +1,31 @@
+# Render blueprint for the visualiser compile API.
+#
+# Only the backend is described here: the frontend is a static build deployed
+# to GitHub Pages from the gh-pages branch (see docs/deployment.md), so there
+# is deliberately no static site entry to keep the two from drifting into two
+# competing sources of truth for the same artefact.
+#
+# Deploy: https://dashboard.render.com -> New -> Blueprint -> pick this repo.
+# Render reads this file and creates the service; nothing here needs editing
+# first except VISUALIZER_CORS_ORIGINS if the frontend origin ever changes.
+
+services:
+  - type: web
+    name: crochet-visualiser-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      # The deployed frontend's real origin. Not "*": the API is stateless and
+      # has no secrets, but a wildcard would still let any page on the web
+      # drive it, and this list is the only access control the service has.
+      - key: VISUALIZER_CORS_ORIGINS
+        value: https://joshwmy.github.io
+      - key: VISUALIZER_ENVIRONMENT
+        value: production
+      # Left at its documented default (50000) — raise only with a matching
+      # look at docs/compile-api.md's safety-limits table, since the parser's
+      # own MAX_SECTION_LINES/MAX_TOTAL_STITCHES bounds sit behind it.
+      # - key: VISUALIZER_MAX_SOURCE_LENGTH
+      #   value: "50000"
