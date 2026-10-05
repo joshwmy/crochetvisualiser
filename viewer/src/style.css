@@ -942,6 +942,19 @@ dd {
   }
 }
 
+/* Mid widths: both side panels stay, so the stage is narrow (≈360px at
+   960px). Drop the speed slider and hint chip so the player fits on one line. */
+@media (max-width: 1100px) and (min-width: 861px) {
+  .player-speed,
+  #stage-hint {
+    display: none;
+  }
+}
+
+#player label {
+  white-space: nowrap;
+}
+
 @media (max-width: 860px) {
   #app {
     grid-template-columns: minmax(0, 1fr);

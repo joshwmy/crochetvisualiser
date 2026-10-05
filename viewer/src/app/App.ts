@@ -94,6 +94,8 @@ export class App {
   /** Environment map and ply bump map. Off on CPU-rasterised WebGL, where
    * they cost ~4x the frame time (see isSoftwareRenderer). */
   private richShading = true;
+  /** Set by anything that changes what is on screen; see renderLoop. */
+  private renderRequested = true;
   private yarnPalette: YarnPalette = {
     main: yarnColourHex(DEFAULT_YARN_COLOUR),
     highlightShaping: false,
@@ -125,6 +127,7 @@ export class App {
     this.timeline = this.createTimeline(doc);
 
     this.store.subscribe((state) => this.applyState(state));
+    this.cameraRig.controls.addEventListener("change", () => this.requestRender());
     this.applyState(this.store.get());
 
     this.canvas.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
@@ -149,6 +152,7 @@ export class App {
    * never leave a half-updated viewer.
    */
   async loadGeometryDocument(doc: GeometryDocument, jsonSizeBytes = 0): Promise<void> {
+    this.requestRender();
     validateGeometry(doc);
 
     const previousStructural = this.structural;
@@ -250,6 +254,7 @@ export class App {
   }
 
   setQuality(quality: QualityName): void {
+    this.requestRender();
     if (quality === this.currentQuality) return;
     const previousYarn = this.yarnScene;
     const rebuilt = buildYarnPathScene(this.doc, QUALITY_PRESETS[quality]);
@@ -268,6 +273,7 @@ export class App {
   }
 
   setLightingPreset(preset: LightingPreset): void {
+    this.requestRender();
     applyLightingPreset(this.scene, preset);
   }
 
@@ -281,12 +287,14 @@ export class App {
   }
 
   setYarnPalette(patch: Partial<YarnPalette>): void {
+    this.requestRender();
     this.yarnPalette = { ...this.yarnPalette, ...patch };
     for (const comp of this.yarnScene.components) applyYarnPalette(comp, this.yarnPalette);
   }
 
   /** Floor grid and axes — measuring aids, hidden by default. */
   setHelpersVisible(visible: boolean): void {
+    this.requestRender();
     setHelpersVisible(this.scene, visible);
   }
 
@@ -429,14 +437,17 @@ export class App {
   }
 
   setViewPreset(preset: ViewPreset): void {
+    this.requestRender();
     this.cameraRig.setPreset(preset);
   }
 
   toggleProjection(): "perspective" | "orthographic" {
+    this.requestRender();
     return this.cameraRig.toggleProjection();
   }
 
   focusOnStitch(stitchId: string): void {
+    this.requestRender();
     const location = this.structural.stitchIdToLocation.get(stitchId);
     if (!location) return;
     const position = new THREE.Vector3();
@@ -447,6 +458,7 @@ export class App {
   }
 
   handleResize(): void {
+    this.requestRender();
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -625,6 +637,7 @@ export class App {
   }
 
   private applyState(state: ViewerState): void {
+    this.requestRender();
     this.highlighter.select(state.viewMode === "structural" ? state.selectedStitchId : null, this.structural);
 
     const structuralVisible = state.viewMode === "structural";
@@ -849,11 +862,27 @@ export class App {
     }
   }
 
+  /** Ask for one more frame. Cheap and idempotent — call it after any
+   * change to the scene, camera, renderer size, or materials. */
+  requestRender(): void {
+    this.renderRequested = true;
+  }
+
+  /**
+   * Renders only when something changed: the camera moved (including
+   * OrbitControls damping), the store changed (which covers the
+   * construction animation, selection, clipping and every overlay), or a
+   * method above requested it. Idle frames cost nothing — on a CPU WebGL
+   * rasteriser a single frame is ~250 ms, and continuous rendering starved
+   * the page's main thread; on laptops it is battery.
+   */
   private renderLoop = (): void => {
     requestAnimationFrame(this.renderLoop);
     const now = performance.now();
     this.timeline.tick(now);
-    this.cameraRig.update();
+    const cameraMoved = this.cameraRig.update();
+    if (!cameraMoved && !this.renderRequested) return;
+    this.renderRequested = false;
     this.renderer.render(this.scene, this.cameraRig.active);
   };
 }
