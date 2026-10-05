@@ -64,6 +64,51 @@ fingerprint) for everything currently stored in `Pattern`, `StitchGraph`,
 and `GeometryDocument`. It is not a portable, cross-language, standards-compliant
 canonical form, and must not be advertised as RFC 8785-compliant.
 
+## Cross-platform float stability (geometry fingerprint only)
+
+The same pattern on Windows (CPython 3.13.7, MSVC UCRT libm) and in the
+`Dockerfile.api` image (CPython 3.13.16, glibc 2.41) produced an identical
+`graph_fingerprint` but a different `geometry_fingerprint`. Diffing the
+canonical geometry JSON for the viewer's `AMIGURUMI_EXAMPLE` found 42 of 2597
+floats differing, **every one by exactly 1 ulp** (max |Δ| 1.8e-15 cm), all
+traced to a single libm disagreement:
+
+| call | UCRT | glibc |
+|---|---|---|
+| `math.sin(4 * math.pi / 3)` | `-0x1.bb67ae8584ca9p-1` | `-0x1.bb67ae8584ca8p-1` |
+
+That angle is hit once per round of 6/12/18 stitches, and flows into
+`position[1]`, `normal[1]`, `tangent[0]`, the adjacent yarn-segment
+`control_points`, and (via `math.hypot`) `measurements.max_radius_cm` /
+`max_circumference_cm`. Python's own `repr`/`round` are platform-independent
+(CPython's bundled dtoa); the drift comes purely from the C library's
+transcendental functions, which are not required to be correctly rounded.
+
+**Fix:** `geometry/layout.py::_canonical_json` now hashes every float
+quantised with `round(x, FINGERPRINT_FLOAT_DECIMALS) + 0.0`
+(`FINGERPRINT_FLOAT_DECIMALS = 9`, i.e. 1e-9 cm; `+ 0.0` folds `-0.0` into
+`0.0`). Only the hash input is quantised — the emitted `GeometryDocument`
+keeps full float precision, so a client cannot recompute the fingerprint by
+hashing the raw payload; it must apply the same quantisation.
+
+What this does and does not guarantee:
+
+- 1-ulp libm noise no longer changes the fingerprint, except when a value sits
+  within 1 ulp of a 1e-9 rounding boundary (probability ≈ 1e-7 per differing
+  float for magnitudes near 1). Cross-platform equality is therefore
+  *expected and tested*, not proven for every possible input.
+- Raw `geometry.json` bytes are still **not** cross-platform identical — only
+  the fingerprint is. The committed `viewer/public/geometry.json` was
+  generated on Windows.
+- `pattern_fingerprint` (Decimal-only) and `graph_fingerprint` (no floats)
+  were already portable and are unchanged.
+
+Guarded by `tests/geometry/test_fingerprint_portability.py`, which pins the
+`AMIGURUMI_EXAMPLE` geometry fingerprint (verified identical on both
+platforms above) and checks that nudging every float by ±1 ulp leaves the
+fingerprint unchanged. Changing `FINGERPRINT_FLOAT_DECIMALS` or the
+quantisation changes every geometry fingerprint.
+
 ## Residual risk (documented, not fixed this slice)
 
 `geometry/models.py`'s `Vec3 = tuple[float, float, float]` fields
@@ -97,5 +142,8 @@ See `tests/test_canonical_json.py` for executable versions of these.
 | `{"s": StitchFamily.SC}` | `{"s":"sc"}` | enum serializes as its `.value` |
 
 Key invariant verified by test: **serializing the same logical value twice
-in the same process always produces byte-identical output** — this is the
-only guarantee this project's fingerprints actually need to make.
+in the same process always produces byte-identical output**. The geometry
+fingerprint additionally aims for cross-platform stability via float
+quantisation (see "Cross-platform float stability" above); the generic
+`canonical_json` recipe itself makes no cross-platform promise for raw
+floats.

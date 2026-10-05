@@ -236,6 +236,16 @@ accounting for that slice.
   viewer — never presented as measurements of a physical object. This now
   explicitly includes the measurement tool's own readings (labelled
   `"cm (approx.)"` in the UI) — see `docs/measurement-tools.md`.
+- **Geometry floats are not bit-identical across operating systems; the
+  geometry fingerprint is stabilised, not exact.** Windows UCRT and glibc
+  libm disagree by one ulp on some `sin`/`hypot` results (≈1e-15 cm), so the
+  raw `geometry.json` payload differs in a few last digits between Windows
+  and the Linux API image. `geometry_fingerprint` hashes floats rounded to
+  9 decimal places (1e-9 cm) to absorb this, so it matches across platforms
+  in every tested case — but a value lying within one ulp of a rounding
+  boundary could still split it. Clients recomputing the fingerprint must
+  apply the same quantisation. See `docs/canonical-json-audit.md`,
+  "Cross-platform float stability".
 
 ## Category and vocabulary
 
