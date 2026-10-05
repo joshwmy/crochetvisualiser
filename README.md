@@ -197,13 +197,14 @@ npm run dev      # http://localhost:5173
 ```
 
 Paste a pattern (an example is preloaded) into the left panel and click
-"Interpret and render" — no fixture file to regenerate or copy by hand.
-Switch to the "SVG diagram" tab to upload or paste a clean vector SVG
+"Render in 3D" — no fixture file to regenerate or copy by hand.
+Switch to the "Chart (SVG)" tab to upload or paste a clean vector SVG
 crochet chart instead, review/correct the extracted symbols in the safe 2D
-preview, and click "Compile to 3D." The
-static `viewer/public/geometry.json` fixture still loads on startup as a
-zero-backend-required demo/fallback (see
-[frontend-to-backend setup](docs/frontend-backend-setup.md)) and remains
+preview, and click "Render in 3D." The
+precompiled example (`viewer/public/example-geometry.json`) loads on
+startup as a zero-backend-required demo (see
+[frontend-to-backend setup](docs/frontend-backend-setup.md)). The larger
+1640-stitch `viewer/public/geometry.json` benchmark fixture remains
 useful standalone via:
 
 ```bash

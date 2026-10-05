@@ -53,8 +53,11 @@ export function buildStructuralScene(doc: GeometryDocument): StructuralScene {
   const stitchIdToLocation = new Map<string, { group: StitchInstanceGroup; index: number }>();
 
   for (const [componentId, stitches] of byComponent) {
+    // No vertexColors: CapsuleGeometry has no `color` attribute, so the flag
+    // multiplied every fragment by WebGL's default (0,0,0) and the whole
+    // structural view rendered black. Per-stitch colour comes from
+    // mesh.instanceColor, which three applies without that flag.
     const material = new THREE.MeshStandardMaterial({
-      vertexColors: true,
       roughness: 0.75,
       metalness: 0.05,
       transparent: true,

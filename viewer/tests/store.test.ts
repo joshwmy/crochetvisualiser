@@ -6,7 +6,7 @@ describe("Store", () => {
     const state = createInitialState(42);
     expect(state.animationIndex).toBe(42);
     expect(state.selectedStitchId).toBeNull();
-    expect(state.viewMode).toBe("structural");
+    expect(state.viewMode).toBe("yarn");
   });
 
   it("merges patches without discarding untouched fields", () => {

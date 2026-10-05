@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { skipOnboarding } from "./helpers";
 
 // Deliberately tiny patterns — this test's point is repeated-compile
 // resource accounting, not geometry complexity, and each iteration is a
@@ -49,6 +50,7 @@ const ITERATIONS = 5;
 
 test.describe("lifecycle: repeated model replacement does not leak Three.js resources", () => {
   test("recompiling the same small pattern repeatedly keeps geometry count bounded", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
     await compile(page, PATTERN_A);
 
@@ -71,6 +73,7 @@ test.describe("lifecycle: repeated model replacement does not leak Three.js reso
   });
 
   test("alternating between two small patterns repeatedly keeps geometry count bounded", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
     await compile(page, PATTERN_A);
     const first = await trackedGeometryCount(page);

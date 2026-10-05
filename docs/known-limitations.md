@@ -118,8 +118,9 @@ accounting for that slice.
 
 ## Compile API and viewer integration (this slice)
 
-- **No diagram/image input.** Text only — SVG/raster chart parsing remains
-  fully deferred (see the "future diagram pipeline" section below).
+- **No raster image input.** Written patterns and clean vector SVG charts
+  are supported (see "SVG diagram ingestion" above); photos, scans and PDFs
+  of charts are not.
 - **No persistence.** The API never writes submitted patterns to disk and
   has no database; closing the tab loses the current pattern text (the
   textarea itself has no autosave).
@@ -129,15 +130,13 @@ accounting for that slice.
   this limitation are resolved; only the single-clipping-plane restriction
   remains. Annotations are in-memory only: no persistence, no export, no
   backend representation, cleared on recompile.
-- **`options.strict` is implemented, but no client exposes it.** The API
-  honours it on all three endpoints (`docs/compile-api.md`'s "Strict mode");
-  the viewer sends no `options` at all and so always takes the `false`
-  default. There is no UI toggle for it — strict mode is currently reachable
-  only by calling the API directly. Its default was **changed from `true` to
-  `false`** when it was implemented, so that turning a documented no-op into
-  real behaviour could not silently start failing existing callers; a client
-  that previously sent `strict: true` expecting nothing to happen will now
-  get strict blocking, which is the only way the field can mean anything.
+- **`options.strict` defaults to `false`.** The API honours it on all three
+  endpoints (`docs/compile-api.md`'s "Strict mode") and the viewer exposes it
+  as a single toggle shared by both input modes. Its default was **changed
+  from `true` to `false`** when it was implemented, so that turning a
+  documented no-op into real behaviour could not silently start failing
+  existing callers; a client that previously sent `strict: true` expecting
+  nothing to happen now gets strict blocking.
 - **E2E coverage is 16 tests across four files**, not a full interaction
   matrix — `viewer/e2e/compile-workflow.spec.ts` (2 tests: the original
   compile scenario, plus an extended scenario covering yarn mode, path

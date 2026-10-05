@@ -27,8 +27,16 @@ export function applyClippingToMaterials(
   materials: THREE.Material[],
   plane: THREE.Plane | null,
 ): void {
+  const planeCount = plane ? 1 : 0;
   for (const material of materials) {
+    // The renderer reads clippingPlanes' values every frame; only a change
+    // in how many planes there are alters the compiled shader. Flagging
+    // needsUpdate unconditionally (this runs on every store update) made
+    // three re-validate every program each time — measurably stalling
+    // headless software-GL e2e runs once the yarn shader gained an
+    // environment map and ply bump map.
+    const previousCount = material.clippingPlanes?.length ?? 0;
     material.clippingPlanes = plane ? [plane] : [];
-    material.needsUpdate = true;
+    if (previousCount !== planeCount) material.needsUpdate = true;
   }
 }

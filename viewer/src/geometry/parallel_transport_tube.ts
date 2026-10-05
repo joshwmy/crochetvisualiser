@@ -104,11 +104,23 @@ export function buildTubeGeometry(
   const n = points.length;
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const colors: number[] = [];
+  // Each ring carries one extra seam vertex (j === radialSegments, same
+  // position as j === 0, v = 1) so the texture wraps cleanly instead of
+  // interpolating v backwards across the last quad. Triangle count is
+  // unchanged — only the vertex count grows by one per ring.
+  const ringSize = radialSegments + 1;
+  // u is measured in tube circumferences of arc length, so a texture's
+  // aspect stays the same on thick and thin yarn and on long and short runs.
+  const circumference = 2 * Math.PI * radius;
+  let arcLength = 0;
 
   for (let i = 0; i < n; i++) {
+    if (i > 0) arcLength += points[i].distanceTo(points[i - 1]);
+    const u = circumference > 0 ? arcLength / circumference : 0;
     const { normal, binormal } = frames[i];
-    for (let j = 0; j < radialSegments; j++) {
+    for (let j = 0; j < ringSize; j++) {
       const angle = (j / radialSegments) * Math.PI * 2;
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
@@ -117,6 +129,7 @@ export function buildTubeGeometry(
       const nz = normal.z * cos + binormal.z * sin;
       positions.push(points[i].x + nx * radius, points[i].y + ny * radius, points[i].z + nz * radius);
       normals.push(nx, ny, nz);
+      uvs.push(u, j / radialSegments);
       if (color) colors.push(color.r, color.g, color.b);
     }
   }
@@ -126,11 +139,10 @@ export function buildTubeGeometry(
   for (let i = 0; i < segCount; i++) {
     const iNext = closed ? (i + 1) % n : i + 1;
     for (let j = 0; j < radialSegments; j++) {
-      const jNext = (j + 1) % radialSegments;
-      const a = i * radialSegments + j;
-      const b = iNext * radialSegments + j;
-      const c = iNext * radialSegments + jNext;
-      const d = i * radialSegments + jNext;
+      const a = i * ringSize + j;
+      const b = iNext * ringSize + j;
+      const c = iNext * ringSize + j + 1;
+      const d = i * ringSize + j + 1;
       indices.push(a, b, d, b, c, d);
     }
   }
@@ -138,6 +150,7 @@ export function buildTubeGeometry(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   if (color) geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
   return geometry;

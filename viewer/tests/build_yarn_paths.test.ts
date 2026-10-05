@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import * as THREE from "three";
 import {
+  applyYarnPalette,
   buildYarnPathScene,
   defaultQualityFor,
   QUALITY_PRESETS,
   stitchIdForFace,
+  VERTEX_KIND,
 } from "../src/geometry/build_yarn_paths";
+import { SEMANTIC_YARN_COLORS } from "../src/materials/yarn_material";
 import { makeTestGeometry } from "./fixtures";
 
 describe("buildYarnPathScene", () => {
@@ -78,5 +82,37 @@ describe("defaultQualityFor", () => {
 
   it("picks medium for mid-sized models", () => {
     expect(defaultQualityFor(1000)).toBe("medium");
+  });
+});
+
+describe("applyYarnPalette", () => {
+  const doc = makeTestGeometry();
+  const component = buildYarnPathScene(doc, QUALITY_PRESETS.low).components[0];
+  const colours = component.mesh.geometry.getAttribute("color");
+  const firstVertexOfKind = (kind: number): number => component.vertexKinds.indexOf(kind);
+
+  // Colours are stored as float32, so compare per channel with a tolerance.
+  const expectColour = (vertex: number, hex: number): void => {
+    const expected = new THREE.Color(hex);
+    expect(colours.getX(vertex)).toBeCloseTo(expected.r, 5);
+    expect(colours.getY(vertex)).toBeCloseTo(expected.g, 5);
+    expect(colours.getZ(vertex)).toBeCloseTo(expected.b, 5);
+  };
+
+  it("records one stitch kind per vertex", () => {
+    expect(component.vertexKinds.length).toBe(component.mesh.geometry.getAttribute("position").count);
+    expect(firstVertexOfKind(VERTEX_KIND.increase)).toBeGreaterThanOrEqual(0);
+  });
+
+  it("paints every stitch the main colour when shaping highlights are off", () => {
+    applyYarnPalette(component, { main: 0x9fb38f, highlightShaping: false });
+    expectColour(firstVertexOfKind(VERTEX_KIND.main), 0x9fb38f);
+    expectColour(firstVertexOfKind(VERTEX_KIND.increase), 0x9fb38f);
+  });
+
+  it("paints increases in their semantic colour when shaping highlights are on", () => {
+    applyYarnPalette(component, { main: 0x9fb38f, highlightShaping: true });
+    expectColour(firstVertexOfKind(VERTEX_KIND.main), 0x9fb38f);
+    expectColour(firstVertexOfKind(VERTEX_KIND.increase), SEMANTIC_YARN_COLORS.increase);
   });
 });

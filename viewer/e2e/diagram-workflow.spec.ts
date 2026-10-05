@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openPanelTab, skipOnboarding } from "./helpers";
 
 // Deliberately small (7 symbols) — this spec exercises the SVG-diagram
 // workflow end to end through the real backend; a small fixture keeps the
@@ -50,6 +51,7 @@ async function analyse(page: Page, svgSource: string): Promise<void> {
 
 test.describe("SVG diagram ingestion workflow", () => {
   test("analyse, correct an unresolved symbol, compile to 3D, select a stitch", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
     await switchToDiagramMode(page);
 
@@ -85,6 +87,7 @@ test.describe("SVG diagram ingestion workflow", () => {
     // 4: switch to yarn mode and select a stitch — exercises the
     // structural hit-proxy picking path (selection/hit_proxies.ts) on a
     // diagram-derived model.
+    await openPanelTab(page, "appearance");
     await page.selectOption("#view-mode", "yarn");
     const canvas = page.locator("#viewport");
     const box = (await canvas.boundingBox())!;
@@ -107,6 +110,7 @@ test.describe("SVG diagram ingestion workflow", () => {
   });
 
   test("malicious SVG is rejected and does not disturb a previously loaded valid model", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
     await switchToDiagramMode(page);
 
@@ -151,6 +155,7 @@ test.describe("SVG diagram ingestion workflow", () => {
   });
 
   test("written-pattern workflow is unaffected by the diagram mode addition", async ({ page }) => {
+    await skipOnboarding(page);
     await page.goto("/");
     // Default mode on load must still be the written-pattern panel.
     await expect(page.locator("#written-pattern-panel")).toBeVisible();

@@ -166,12 +166,12 @@ need for it.
 
 ## Visualisation modes
 
-- **Structural** (default): instanced capsules, coloured by component, with
+- **Structural** ("Stitch map" in the UI): instanced capsules, coloured by component, with
   increase/decrease stitches tinted separately. One fixed capsule size per
   gauge — still not stitch-type-specific (see "Known first-slice
   simplification" above; unchanged by the yarn-mode work below, since that
   work is entirely additive in a separate mode).
-- **Yarn (crochet-specific)**: per-stitch procedural yarn-path geometry —
+- **Yarn** (default since the frontend makeover): per-stitch procedural yarn-path geometry —
   see `docs/stitch-geometry-strategies.md` for the strategy system and
   `docs/yarn-material-and-lighting.md` for the material/quality-preset
   details. Replaces the earlier "basic yarn" placeholder (straight tubes

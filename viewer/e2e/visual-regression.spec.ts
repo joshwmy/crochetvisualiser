@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openPanelTab, skipOnboarding } from "./helpers";
 
 /**
  * Deterministic screenshot regression suite.
@@ -26,7 +27,7 @@ import { test, expect, type Page } from "@playwright/test";
  * and much faster to build across 9 screenshots), `reduced motion`
  * emulated *before* navigation (App reads matchMedia at construction time
  * to disable OrbitControls damping — see App.ts), the default
- * `neutral_laboratory` lighting preset and default yarn colours (never
+ * default `soft_studio` lighting preset and default yarn colours (never
  * changed), animation always fully built (this pipeline has no partial
  * default state), and a fixed "front" camera preset for every screenshot.
  * A short `waitForTimeout` after each state change gives the last
@@ -188,6 +189,7 @@ async function loadFixtureAndStabilize(page: Page): Promise<void> {
     async (d) => await (window as unknown as { __app: AppTestHook }).__app.loadGeometryDocument(d),
     doc,
   );
+  await openPanelTab(page, "appearance");
   await page.selectOption("#quality-select", "low");
   await page.selectOption("#view-mode", "yarn");
   await page.evaluate(() => {
@@ -207,6 +209,7 @@ async function selectStitch(page: Page, stitchId: string): Promise<void> {
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await skipOnboarding(page);
   await page.goto("/");
   await expect(page.locator("#viewport")).toBeVisible();
   // "#viewport" (the <canvas>) exists in the static HTML before any JS
@@ -243,6 +246,7 @@ test.describe("visual regression: scientific viewer", () => {
 
   test("selected stitch with graph overlay", async ({ page }) => {
     await selectStitch(page, "inc-a-5");
+    await openPanelTab(page, "analyse");
     await page.check("#graph-overlay-toggle");
     await page.waitForTimeout(300);
     await expect(page.locator("#viewport")).toHaveScreenshot("graph-overlay.png", SCREENSHOT_OPTIONS);
@@ -250,6 +254,7 @@ test.describe("visual regression: scientific viewer", () => {
 
   test("selected stitch in path-inspection mode, focused on the post role", async ({ page }) => {
     await selectStitch(page, "dc-4");
+    await openPanelTab(page, "analyse");
     await page.check("#path-mode-toggle");
     await page.waitForTimeout(150);
     await page.selectOption("#path-role-select", "post");
@@ -258,12 +263,14 @@ test.describe("visual regression: scientific viewer", () => {
   });
 
   test("X-ray mode", async ({ page }) => {
+    await openPanelTab(page, "analyse");
     await page.check("#xray-toggle");
     await page.waitForTimeout(300);
     await expect(page.locator("#viewport")).toHaveScreenshot("xray-mode.png", SCREENSHOT_OPTIONS);
   });
 
   test("clipped model", async ({ page }) => {
+    await openPanelTab(page, "analyse");
     await page.check("#clip-enabled");
     await page.selectOption("#clip-axis", "z");
     await page.waitForTimeout(300);
@@ -351,6 +358,7 @@ test.describe("visual regression: SVG diagram", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
+    await skipOnboarding(page);
     await page.goto("/");
     await page.waitForFunction(() => Boolean((window as unknown as { __app?: unknown }).__app));
   });
@@ -386,6 +394,9 @@ test.describe("visual regression: SVG diagram", () => {
       page.click("#diagram-compile-button"),
     ]);
     await expect(page.locator("#diagram-status")).toHaveText("Compiled successfully.", { timeout: 45_000 });
+    // Yarn is the default view now; this baseline is of the structural one.
+    await openPanelTab(page, "appearance");
+    await page.selectOption("#view-mode", "structural");
     await page.selectOption("#quality-select", "low");
     await page.evaluate(() => {
       const app = (window as unknown as { __app: { setViewPreset(p: string): void } }).__app;

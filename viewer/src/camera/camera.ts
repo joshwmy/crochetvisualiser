@@ -99,7 +99,8 @@ export class CameraRig {
     this.orthographic.updateProjectionMatrix();
   }
 
-  update(): void {
-    this.controls.update();
+  /** Advances damping; true when the camera actually moved this frame. */
+  update(): boolean {
+    return this.controls.update();
   }
 }

@@ -39,10 +39,49 @@ export interface StitchFaceRange {
   endFace: number; // exclusive
 }
 
+/** Per-vertex stitch kind, so the palette can be recoloured in place. */
+export const VERTEX_KIND = { main: 0, increase: 1, decrease: 2 } as const;
+
 export interface YarnPathComponentMesh {
   componentId: string;
   mesh: THREE.Mesh;
   faceRanges: StitchFaceRange[]; // sorted by startFace, contiguous, for binary search
+  /** One `VERTEX_KIND` per vertex of `mesh`, in vertex order. */
+  vertexKinds: Uint8Array;
+}
+
+/**
+ * How the yarn is coloured. `highlightShaping` paints increases and
+ * decreases in their semantic colours; off, every stitch is `main`, which
+ * is what a real one-colour crochet piece looks like.
+ */
+export interface YarnPalette {
+  main: THREE.ColorRepresentation;
+  highlightShaping: boolean;
+}
+
+export const DEFAULT_YARN_PALETTE: YarnPalette = {
+  main: SEMANTIC_YARN_COLORS.main,
+  highlightShaping: true,
+};
+
+/** Rewrites a yarn component's vertex colours for `palette`, without
+ * rebuilding any geometry. */
+export function applyYarnPalette(component: YarnPathComponentMesh, palette: YarnPalette): void {
+  const attribute = component.mesh.geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
+  if (!attribute) return;
+  const main = new THREE.Color(palette.main);
+  const increase = new THREE.Color(palette.highlightShaping ? SEMANTIC_YARN_COLORS.increase : palette.main);
+  const decrease = new THREE.Color(palette.highlightShaping ? SEMANTIC_YARN_COLORS.decrease : palette.main);
+  const byKind = [main, increase, decrease];
+  const array = attribute.array as Float32Array;
+  for (let i = 0; i < component.vertexKinds.length; i++) {
+    const colour = byKind[component.vertexKinds[i]];
+    array[i * 3] = colour.r;
+    array[i * 3 + 1] = colour.g;
+    array[i * 3 + 2] = colour.b;
+  }
+  attribute.needsUpdate = true;
 }
 
 export interface YarnPathScene {
@@ -77,6 +116,7 @@ export function buildYarnPathScene(doc: GeometryDocument, quality: QualityPreset
   for (const [componentId, stitches] of byComponent) {
     const geometries: THREE.BufferGeometry[] = [];
     const faceRanges: StitchFaceRange[] = [];
+    const kinds: number[] = [];
     let faceCursor = 0;
 
     for (const stitch of stitches) {
@@ -84,6 +124,11 @@ export function buildYarnPathScene(doc: GeometryDocument, quality: QualityPreset
       pathResultsByStitch.set(stitch.stitch_id, result);
       if (result.warnings.length > 0) warningsByStitch.set(stitch.stitch_id, result.warnings);
 
+      const stitchKind = stitch.is_increase
+        ? VERTEX_KIND.increase
+        : stitch.is_decrease
+          ? VERTEX_KIND.decrease
+          : VERTEX_KIND.main;
       const stitchColor = new THREE.Color(
         stitch.is_increase
           ? SEMANTIC_YARN_COLORS.increase
@@ -118,6 +163,8 @@ export function buildYarnPathScene(doc: GeometryDocument, quality: QualityPreset
           stitchColor,
         );
         geometries.push(geometry);
+        const vertexCount = geometry.getAttribute("position").count;
+        for (let v = 0; v < vertexCount; v++) kinds.push(stitchKind);
         const triangles = triangleCountForTube(sampled.length, quality.radialSegments, segment.closed);
         faceCursor += triangles;
         totalTriangles += triangles;
@@ -132,7 +179,7 @@ export function buildYarnPathScene(doc: GeometryDocument, quality: QualityPreset
     material.vertexColors = true;
     const mesh = new THREE.Mesh(merged, material);
     mesh.name = `yarn-paths-${componentId}`;
-    components.push({ componentId, mesh, faceRanges });
+    components.push({ componentId, mesh, faceRanges, vertexKinds: Uint8Array.from(kinds) });
   }
 
   return {
