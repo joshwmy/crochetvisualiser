@@ -115,8 +115,40 @@ curl -s -X POST https://your-api.onrender.com/api/visualizer/compile \
 ```
 
 A free-tier Render instance sleeps when idle; the first request after a sleep
-can take tens of seconds. The viewer has no retry or warm-up logic, so that
-first compile may surface as a network error rather than a slow success.
+can take tens of seconds. The viewer softens this two ways
+(`viewer/src/api/client.ts`):
+
+- **Warm-up.** On page load it fires a `no-cors` `GET /healthz` at a remote
+  API, so the instance starts booting while the viewer loads rather than on
+  the user's first click. Skipped for a `localhost` backend.
+- **One retry.** A compile/analyse request that fails at the network level or
+  gets a 502/503/504 is retried once after 5 s. Safe because every endpoint is
+  stateless and idempotent. A second failure is shown as-is, with a message
+  saying an idle server can take up to a minute to wake.
+
+A boot longer than both still surfaces as a network error; trying again a
+little later then succeeds.
+
+### Verifying the image locally
+
+Build and run it the way Render will, including an injected `$PORT`, before
+deploying. An editable dev install reads straight from `src/`, so a missing
+package-data entry only shows up in a real install like this one
+(`tests/test_package_data.py` now guards it):
+
+```bash
+docker build -f Dockerfile.api -t crochet-visualiser-api:local .
+docker run --rm -p 18000:10000 -e PORT=10000 \
+  -e VISUALIZER_CORS_ORIGINS=https://joshwmy.github.io \
+  crochet-visualiser-api:local
+curl -s localhost:18000/healthz
+```
+
+Then smoke-test a compile with the `curl -X POST` above (against
+`localhost:18000`), or with the viewer's bundled `AMIGURUMI_EXAMPLE` for a
+fuller run. Check `success` is `true` — the API reports internal failures as
+a 200 with an `INTERNAL_SERVER_FAILURE` diagnostic, so the status code alone
+proves nothing.
 
 ## What is deliberately not deployed
 

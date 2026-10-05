@@ -9,6 +9,95 @@ export function getApiBaseUrl(): string {
 }
 
 /**
+ * Statuses a sleeping free-tier host (Render) can answer with while the
+ * instance boots. Retrying is safe because every endpoint is stateless and
+ * idempotent — nothing is persisted (docs/compile-api.md).
+ */
+const COLD_START_STATUSES = new Set([502, 503, 504]);
+export const COLD_START_RETRY_DELAY_MS = 5000;
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * POSTs JSON, retrying once after a short delay when the failure looks like a
+ * host waking from idle (fetch rejected, or a 502/503/504). A second failure
+ * is reported as-is; an abort is never retried or wrapped.
+ */
+export async function postWithColdStartRetry(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal,
+  retryDelayMs: number = COLD_START_RETRY_DELAY_MS,
+): Promise<Response> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  };
+  for (let attempt = 0; ; attempt++) {
+    const isLastAttempt = attempt === 1;
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      if (isLastAttempt) {
+        throw new CompileNetworkError(`Could not reach ${url}: ${(err as Error).message}`);
+      }
+      await delay(retryDelayMs, signal);
+      continue;
+    }
+    if (!isLastAttempt && COLD_START_STATUSES.has(response.status)) {
+      await delay(retryDelayMs, signal);
+      continue;
+    }
+    return response;
+  }
+}
+
+/**
+ * Fire-and-forget request that starts waking a sleeping API host as soon as
+ * the page loads, so the user's first compile does not pay the whole boot
+ * time. `no-cors` because only the request matters, not the response — it
+ * also keeps a CORS mismatch from logging an error for a request nobody
+ * reads. Skipped for a local backend, which never sleeps.
+ */
+export function warmUpApi(): void {
+  const base = getApiBaseUrl();
+  let hostname: string;
+  try {
+    hostname = new URL(base).hostname;
+  } catch {
+    return;
+  }
+  if (hostname === "localhost" || hostname === "127.0.0.1") return;
+  fetch(`${base}/healthz`, { mode: "no-cors" }).catch(() => {
+    // A failed warm-up is harmless: the real request retries on its own.
+  });
+}
+
+/**
  * Request options shared by both compile paths.
  *
  * `strict` blocks a compile that only succeeded because something was assumed
@@ -29,18 +118,7 @@ export async function compilePattern(
   options: RequestOptions = DEFAULT_REQUEST_OPTIONS,
 ): Promise<CompileResponse> {
   const url = `${getApiBaseUrl()}/api/visualizer/compile`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source, options }),
-      signal,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new CompileNetworkError(`Could not reach ${url}: ${(err as Error).message}`);
-  }
+  const response = await postWithColdStartRetry(url, { source, options }, signal);
   if (!response.ok) {
     // A non-2xx here means our own request was malformed (e.g. bad
     // terminology value) or the server had a transport-level failure —

@@ -1,6 +1,11 @@
 import type { CompileResponse } from "../types/compile";
 import type { DiagramCorrectionSet, DiagramDiagnostic, DiagramDocument } from "../types/diagram";
-import { CompileNetworkError, DEFAULT_REQUEST_OPTIONS, getApiBaseUrl } from "./client";
+import {
+  CompileNetworkError,
+  DEFAULT_REQUEST_OPTIONS,
+  getApiBaseUrl,
+  postWithColdStartRetry,
+} from "./client";
 import type { RequestOptions } from "./client";
 
 export interface DiagramAnalyseSummary {
@@ -43,18 +48,7 @@ export interface DiagramCompileResponse {
 
 async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const url = `${getApiBaseUrl()}${path}`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new CompileNetworkError(`Could not reach ${url}: ${(err as Error).message}`);
-  }
+  const response = await postWithColdStartRetry(url, body, signal);
   if (!response.ok) {
     throw new CompileNetworkError(`Request failed: HTTP ${response.status}`);
   }

@@ -1,4 +1,5 @@
 import { App } from "./app/App";
+import { warmUpApi } from "./api/client";
 import { CompileController } from "./app/compile_controller";
 import { DiagramController } from "./app/diagram_controller";
 import { loadGeometry, GeometryLoadError } from "./geometry/load";
@@ -37,6 +38,9 @@ function qs<T extends HTMLElement>(id: string): T {
 }
 
 async function main(): Promise<void> {
+  // Before the fixture fetch, so a sleeping API host boots while the viewer
+  // loads rather than after the user's first click.
+  warmUpApi();
   // BASE_URL, not a leading "/": on a project GitHub Pages site the app is
   // served from /<repo>/, where an absolute "/geometry.json" 404s. Vite
   // guarantees BASE_URL ends with a slash, and it is "/" everywhere else.
@@ -666,7 +670,8 @@ const STATUS_LABELS: Record<CompileState["status"], string> = {
   compiling: "Compiling…",
   success: "Compiled successfully.",
   validation_error: "Pattern could not be compiled — see diagnostics below.",
-  network_error: "Could not reach the compile server.",
+  network_error:
+    "Could not reach the compile server. If it was idle it can take up to a minute to wake — try again shortly.",
   internal_error: "The compiled result could not be loaded.",
 };
 
@@ -796,7 +801,8 @@ const DIAGRAM_STATUS_LABELS: Record<DiagramState["status"], string> = {
   analysed: "Analysed.",
   compiling: "Compiling…",
   compiled: "Compiled successfully.",
-  network_error: "Could not reach the server, or the request failed.",
+  network_error:
+    "Could not reach the server, or the request failed. If it was idle it can take up to a minute to wake — try again shortly.",
   internal_error: "The compiled result could not be loaded.",
 };
 
