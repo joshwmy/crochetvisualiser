@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Six stitch symbols drawn as centred crosses, which the primitive-geometry
+       heuristic reads as single_crochet, each with a free-standing "dc" text
+       label beside it. Text-label association (priority 7) must win over the
+       geometry heuristic (priority 8), so every one compiles as double_crochet.
+       The centre ring carries an id so centre detection still has explicit
+       metadata — text labels are about stitch symbols, not the centre. -->
+  <g id="magic-ring" transform="translate(200,200)"><circle r="6"/></g>
+
+  <path d="M 235 200 L 245 200 M 240 195 L 240 205"/>
+  <text x="252" y="200">dc</text>
+
+  <path d="M 215 234.64 L 225 234.64 M 220 229.64 L 220 239.64"/>
+  <text x="226" y="245.03">dc</text>
+
+  <path d="M 175 234.64 L 185 234.64 M 180 229.64 L 180 239.64"/>
+  <text x="174" y="245.03">dc</text>
+
+  <path d="M 155 200 L 165 200 M 160 195 L 160 205"/>
+  <text x="148" y="200">dc</text>
+
+  <path d="M 175 165.36 L 185 165.36 M 180 160.36 L 180 170.36"/>
+  <text x="174" y="154.97">dc</text>
+
+  <path d="M 215 165.36 L 225 165.36 M 220 160.36 L 220 170.36"/>
+  <text x="226" y="154.97">dc</text>
+</svg>

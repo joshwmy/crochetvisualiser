@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+<defs><g id="symbol-sc"><path d="M0,-4 L0,4 M-4,0 L4,0"/></g><g id="symbol-mr"><circle r="6"/></g></defs>
+<use href="#symbol-mr" data-stitch-type="magic_ring" transform="translate(200.0,200.0)"/>
+<use href="#symbol-sc" transform="translate(230.0000,200.0000)"/>
+<use href="#symbol-sc" transform="translate(215.0000,225.9808)"/>
+<use href="#symbol-sc" transform="translate(185.0000,225.9808)"/>
+<use href="#symbol-sc" transform="translate(170.0000,200.0000)"/>
+<use href="#symbol-sc" transform="translate(185.0000,174.0192)"/>
+<use href="#symbol-sc" transform="translate(215.0000,174.0192)"/>
+</svg>

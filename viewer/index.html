@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crochet Scientific Viewer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="editor-panel">
+        <div class="button-row" id="input-mode-tabs" role="tablist" aria-label="Pattern input mode">
+          <button type="button" data-mode="written" role="tab" aria-selected="true">Written pattern</button>
+          <button type="button" data-mode="diagram" role="tab" aria-selected="false">SVG diagram</button>
+        </div>
+
+        <label id="strict-mode-label">
+          <input type="checkbox" id="strict-mode-toggle" aria-describedby="strict-mode-hint" />
+          Strict mode
+        </label>
+        <p id="strict-mode-hint" class="hint">
+          Refuse a result that relied on an assumption or produced a warning.
+          Applies to both input modes.
+        </p>
+
+        <div id="written-pattern-panel">
+          <h1>Written pattern</h1>
+          <p class="subtitle">US terminology only. See the example for supported syntax.</p>
+
+          <form id="compile-form">
+            <label for="pattern-source">Pattern text</label>
+            <textarea
+              id="pattern-source"
+              rows="14"
+              spellcheck="false"
+              aria-describedby="compile-status"
+            ></textarea>
+
+            <label for="terminology-select">Terminology</label>
+            <select id="terminology-select">
+              <option value="US">US</option>
+            </select>
+
+            <div class="button-row">
+              <button id="compile-button" type="submit">Interpret and render</button>
+              <button id="example-button" type="button">Load example</button>
+              <button id="clear-button" type="button">Clear</button>
+            </div>
+            <p class="hint">Ctrl+Enter to compile.</p>
+          </form>
+
+          <p id="compile-status" role="status" aria-live="polite"></p>
+
+          <section aria-labelledby="summary-heading">
+            <h2 id="summary-heading">Summary</h2>
+            <dl id="compile-summary"></dl>
+          </section>
+
+          <section aria-labelledby="diagnostics-heading">
+            <h2 id="diagnostics-heading">Diagnostics</h2>
+            <ul id="diagnostics-list" aria-label="Compile diagnostics"></ul>
+          </section>
+        </div>
+
+        <div id="diagram-panel" hidden>
+          <h1>SVG diagram</h1>
+          <p class="subtitle">
+            Clean vector SVG only: one primary circular/radial chart, semantic
+            metadata (<code>data-stitch-type</code>, <code>&lt;use&gt;</code>,
+            labelled ids/classes) preferred over shape guessing. Raster images,
+            hand-drawn charts, and garment schematics are not supported.
+          </p>
+
+          <label for="diagram-file-input">Upload SVG file</label>
+          <input type="file" id="diagram-file-input" accept="image/svg+xml,.svg" />
+
+          <label for="diagram-source">Or paste SVG source</label>
+          <textarea id="diagram-source" rows="8" spellcheck="false"></textarea>
+
+          <div class="button-row">
+            <button id="diagram-analyse-button" type="button">Analyse diagram</button>
+          </div>
+
+          <p id="diagram-status" role="status" aria-live="polite"></p>
+
+          <section aria-labelledby="diagram-diagnostics-heading">
+            <h2 id="diagram-diagnostics-heading">Diagnostics</h2>
+            <ul id="diagram-diagnostics-list" aria-label="Diagram diagnostics"></ul>
+          </section>
+
+          <section aria-labelledby="diagram-summary-heading" id="diagram-summary-section" hidden>
+            <h2 id="diagram-summary-heading">Analysis summary</h2>
+            <dl id="diagram-summary"></dl>
+          </section>
+
+          <section aria-labelledby="diagram-preview-heading" id="diagram-preview-section" hidden>
+            <h2 id="diagram-preview-heading">2D preview</h2>
+            <ul id="diagram-confidence-legend" aria-label="Confidence colour legend"></ul>
+            <div class="button-row">
+              <label><input type="checkbox" id="diagram-show-relationships" checked /> Relationships</label>
+              <label><input type="checkbox" id="diagram-only-unclassified" /> Unclassified only</label>
+              <label><input type="checkbox" id="diagram-only-low-confidence" /> Low confidence only</label>
+            </div>
+            <div class="button-row">
+              <button id="diagram-zoom-in" type="button" aria-label="Zoom in">+</button>
+              <button id="diagram-zoom-out" type="button" aria-label="Zoom out">−</button>
+              <button id="diagram-fit-view" type="button">Fit to view</button>
+            </div>
+            <label for="diagram-round-filter">Visible rounds</label>
+            <select id="diagram-round-filter" multiple size="4"></select>
+            <div
+              id="diagram-preview"
+              role="img"
+              aria-label="Diagram preview — scroll to zoom, drag to pan"
+            ></div>
+
+            <h3>Symbols</h3>
+            <ul id="diagram-symbol-list" aria-label="Extracted symbols"></ul>
+
+            <div id="diagram-correction-panel" hidden>
+              <h3>Correct selected symbol</h3>
+              <dl id="diagram-selected-symbol-info"></dl>
+              <label for="diagram-stitch-type-select">Stitch type</label>
+              <select id="diagram-stitch-type-select">
+                <option value="">(leave unclassified)</option>
+                <option value="magic_ring">Magic ring</option>
+                <option value="chain">Chain</option>
+                <option value="slip_stitch">Slip stitch</option>
+                <option value="single_crochet">Single crochet</option>
+                <option value="half_double_crochet">Half double crochet</option>
+                <option value="double_crochet">Double crochet</option>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+                <option value="join">Join / round closure</option>
+              </select>
+              <label for="diagram-round-index-input">Round</label>
+              <input type="number" id="diagram-round-index-input" min="0" step="1" />
+              <label for="diagram-sequence-index-input">Position within round</label>
+              <input type="number" id="diagram-sequence-index-input" min="0" step="1" />
+              <div class="button-row">
+                <label><input type="checkbox" id="diagram-mark-ignored" /> Ignore this symbol</label>
+                <label><input type="checkbox" id="diagram-mark-round-start" /> Round start</label>
+                <label><input type="checkbox" id="diagram-mark-round-closure" /> Round closure</label>
+              </div>
+              <div class="button-row">
+                <button id="diagram-apply-correction" type="button">Apply</button>
+                <button id="diagram-restore-automatic" type="button">Restore automatic</button>
+              </div>
+            </div>
+
+            <div id="diagram-relationship-panel" hidden>
+              <h3>Correct selected relationship</h3>
+              <dl id="diagram-selected-relationship-info"></dl>
+              <div class="button-row">
+                <button id="diagram-relationship-confirm" type="button">Confirm</button>
+                <button id="diagram-relationship-set-parent" type="button">
+                  Set parent = selected symbol
+                </button>
+                <button id="diagram-relationship-add-parent" type="button">
+                  Add selected symbol as parent
+                </button>
+                <button id="diagram-relationship-remove-parent" type="button">Remove this parent</button>
+                <button id="diagram-relationship-restore" type="button">Restore automatic</button>
+              </div>
+            </div>
+
+            <h3>Chart construction</h3>
+            <div class="button-row">
+              <button id="diagram-reverse-direction" type="button">Reverse round direction</button>
+              <button id="diagram-reset-corrections" type="button">Reset all corrections</button>
+            </div>
+            <label for="diagram-centre-x-input">Centre X</label>
+            <input type="number" id="diagram-centre-x-input" step="any" />
+            <label for="diagram-centre-y-input">Centre Y</label>
+            <input type="number" id="diagram-centre-y-input" step="any" />
+            <label for="diagram-start-symbol-select">Starting stitch</label>
+            <select id="diagram-start-symbol-select">
+              <option value="">(automatic)</option>
+            </select>
+            <label for="diagram-round-tolerance-input">Round-clustering tolerance</label>
+            <input type="number" id="diagram-round-tolerance-input" min="0" step="any" />
+            <div class="button-row">
+              <button id="diagram-apply-construction" type="button">Apply chart settings</button>
+            </div>
+          </section>
+
+          <div class="button-row">
+            <button id="diagram-compile-button" type="button" disabled>Compile to 3D</button>
+            <button id="diagram-return-to-review-button" type="button" hidden>Return to 2D review</button>
+          </div>
+        </div>
+      </aside>
+
+      <canvas id="viewport" aria-label="3D crochet stitch viewer"></canvas>
+      <div id="viewer-error" role="alert"></div>
+      <aside id="panel">
+        <h1>Crochet Scientific Viewer</h1>
+        <p class="subtitle">Structural preview — not a physical simulation.</p>
+
+        <section aria-labelledby="info-heading">
+          <h2 id="info-heading">Pattern</h2>
+          <dl id="info"></dl>
+        </section>
+
+        <section aria-labelledby="view-heading">
+          <h2 id="view-heading">View</h2>
+          <label for="view-mode">Mode</label>
+          <select id="view-mode">
+            <option value="structural">Structural</option>
+            <option value="yarn">Yarn (crochet-specific)</option>
+          </select>
+          <label for="quality-select">Yarn quality</label>
+          <select id="quality-select">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+          <label for="lighting-select">Lighting</label>
+          <select id="lighting-select">
+            <option value="neutral_laboratory" selected>Neutral laboratory</option>
+            <option value="soft_studio">Soft studio</option>
+            <option value="high_contrast_inspection">High-contrast inspection</option>
+          </select>
+          <label><input type="checkbox" id="xray-toggle" /> X-ray mode</label>
+          <label><input type="checkbox" id="graph-overlay-toggle" /> Graph overlay (selected stitch)</label>
+          <ul id="graph-overlay-legend" aria-label="Graph overlay edge-type colour legend" hidden></ul>
+          <button id="toggle-projection" type="button">Perspective / Orthographic</button>
+          <div class="button-row" id="view-presets">
+            <button type="button" data-preset="front">Front</button>
+            <button type="button" data-preset="back">Back</button>
+            <button type="button" data-preset="left">Left</button>
+            <button type="button" data-preset="right">Right</button>
+            <button type="button" data-preset="top">Top</button>
+            <button type="button" data-preset="bottom">Bottom</button>
+            <button type="button" data-preset="reset">Reset</button>
+          </div>
+        </section>
+
+        <section aria-labelledby="timeline-heading">
+          <h2 id="timeline-heading">Construction animation</h2>
+          <div class="button-row">
+            <button id="anim-restart" type="button">Restart</button>
+            <button id="anim-step-back" type="button">Step back</button>
+            <button id="anim-play" type="button">Play</button>
+            <button id="anim-step-forward" type="button">Step forward</button>
+          </div>
+          <label for="timeline-slider">Stitch <span id="timeline-label">0 / 0</span></label>
+          <input type="range" id="timeline-slider" min="0" max="0" value="0" />
+          <label for="anim-speed">Speed (stitches/sec)</label>
+          <input type="range" id="anim-speed" min="5" max="400" value="60" />
+        </section>
+
+        <section aria-labelledby="visibility-heading">
+          <h2 id="visibility-heading">Visibility</h2>
+          <div id="component-toggles"></div>
+          <label for="isolate-round">Isolate round</label>
+          <select id="isolate-round">
+            <option value="">All rounds</option>
+          </select>
+          <label for="opacity-slider">Global opacity</label>
+          <input type="range" id="opacity-slider" min="0" max="100" value="100" />
+        </section>
+
+        <section aria-labelledby="clipping-heading">
+          <h2 id="clipping-heading">Clipping plane</h2>
+          <label><input type="checkbox" id="clip-enabled" /> Enabled</label>
+          <label for="clip-axis">Axis</label>
+          <select id="clip-axis">
+            <option value="x">X</option>
+            <option value="y">Y</option>
+            <option value="z" selected>Z</option>
+          </select>
+          <label for="clip-offset">Position (% of bounds)</label>
+          <input type="range" id="clip-offset" min="-100" max="100" value="0" />
+          <input type="number" id="clip-offset-number" min="-100" max="100" value="0" aria-label="Clipping position, percent of bounds" />
+          <label><input type="checkbox" id="clip-invert" /> Invert</label>
+          <div class="button-row">
+            <button id="clip-reset" type="button">Reset clipping</button>
+          </div>
+        </section>
+
+        <section aria-labelledby="inspector-heading">
+          <h2 id="inspector-heading">Inspector</h2>
+          <p id="inspector-empty">Click a stitch to inspect it.</p>
+          <dl id="inspector-content" hidden></dl>
+          <div class="button-row" id="inspector-actions" hidden>
+            <button id="action-focus" type="button">Focus</button>
+            <button id="action-isolate-round" type="button">Isolate round</button>
+            <button id="action-clear-selection" type="button">Clear selection</button>
+          </div>
+          <ul id="yarn-warnings" aria-label="Geometry warnings"></ul>
+        </section>
+
+        <section aria-labelledby="path-inspection-heading">
+          <h2 id="path-inspection-heading">Path inspection</h2>
+          <label><input type="checkbox" id="path-mode-toggle" /> Show stitch path (yarn mode)</label>
+          <label for="path-role-select">Path role</label>
+          <select id="path-role-select">
+            <option value="">All roles (highlight all)</option>
+          </select>
+          <div class="button-row">
+            <button id="path-clear-focus" type="button">Clear path focus</button>
+          </div>
+          <ul id="path-role-legend" aria-label="Path role colour legend"></ul>
+        </section>
+
+        <section aria-labelledby="measurement-heading">
+          <h2 id="measurement-heading">Measurements</h2>
+          <label><input type="checkbox" id="measurement-mode-toggle" /> Measurement mode (click two points)</label>
+          <label for="measurement-kind-select">Click measurement kind</label>
+          <select id="measurement-kind-select">
+            <option value="stitch">Stitch-to-stitch</option>
+            <option value="point">Arbitrary point-to-point</option>
+          </select>
+          <p id="measurement-status" role="status" aria-live="polite"></p>
+          <div class="button-row">
+            <button id="measure-width" type="button">Measure width</button>
+            <button id="measure-height" type="button">Measure height</button>
+            <button id="measure-round-circumference" type="button">Measure selected round circumference</button>
+          </div>
+          <ul id="measurement-list" aria-label="Recorded measurements"></ul>
+        </section>
+
+        <section aria-labelledby="annotation-heading">
+          <h2 id="annotation-heading">Annotations</h2>
+          <label><input type="checkbox" id="annotation-mode-toggle" /> Annotation mode (click to place)</label>
+          <label for="annotation-kind-select">Click anchor kind</label>
+          <select id="annotation-kind-select">
+            <option value="stitch">Anchor to stitch</option>
+            <option value="point">Anchor to arbitrary point</option>
+          </select>
+          <p id="annotation-status" role="status" aria-live="polite"></p>
+          <label for="annotation-text">Annotation text</label>
+          <input
+            type="text"
+            id="annotation-text"
+            maxlength="280"
+            placeholder="Note about this stitch or region"
+          />
+          <p id="annotation-remaining"></p>
+          <div class="button-row">
+            <button id="annotation-save" type="button">Add annotation</button>
+            <button id="annotation-cancel-edit" type="button">Cancel edit</button>
+          </div>
+          <ul id="annotation-list" aria-label="Recorded annotations"></ul>
+        </section>
+
+        <section aria-labelledby="perf-heading">
+          <h2 id="perf-heading">Performance</h2>
+          <dl id="perf"></dl>
+        </section>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

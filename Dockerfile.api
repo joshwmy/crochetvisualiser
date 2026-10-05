@@ -1,0 +1,38 @@
+# Visualiser compile API (crochet_reconstruction.api.app:create_app).
+#
+# Deliberately separate from ./Dockerfile, which serves the *paused
+# contributor portal* and pulls in SQLAlchemy/Pillow/Alembic behind the
+# `portal` extra plus a writable data volume. This API has none of that: no
+# database, no migrations, no file storage, no secrets — so it gets its own
+# minimal image rather than inheriting a heavier one it does not need.
+
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+
+RUN pip install ".[api]"
+
+# Non-root, and no writable volume: the API never persists anything (see
+# docs/compile-api.md — submitted patterns and SVGs are never written to disk).
+RUN useradd --create-home --uid 1000 api
+USER api
+
+# Hosts that inject their own port (Render, Fly, Railway) set $PORT; 8000 is
+# the local default so `docker run -p 8000:8000` works with no extra flags.
+ENV PORT=8000
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.environ.get('PORT','8000')}/healthz\", timeout=3).status == 200 else 1)"
+
+# VISUALIZER_CORS_ORIGINS must be set to the deployed frontend's real origin
+# before this is reachable from a browser — the default only allows
+# http://localhost:5173. See docs/deployment.md.
+CMD ["sh", "-c", "uvicorn crochet_reconstruction.api.app:create_app --factory --host 0.0.0.0 --port ${PORT:-8000}"]

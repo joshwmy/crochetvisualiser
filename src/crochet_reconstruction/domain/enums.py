@@ -23,18 +23,17 @@ class Terminology(StrEnum):
 
 
 class StitchFamily(StrEnum):
-    """Supported body stitches for Phase 1.
+    """Supported body stitches.
 
-    Double crochet (``dc``) appears in the source decision package's DSL
-    examples and template library, but Phase 1 scope explicitly restricts
-    the body stitch vocabulary to single and half-double crochet. ``dc``
-    is intentionally absent here rather than present-but-unsupported,
-    because an unused enum member invites accidental use without a
-    matching engine/template implementation.
+    ``SC``/``HDC`` are the Phase 1 beanie engine's vocabulary (see
+    ``engine/crown.py``/``engine/body.py``). ``DC`` was added for the
+    written-pattern parser (``parsing/written/``), which needs it for its
+    documented abbreviation list; the beanie engine still never emits it.
     """
 
     SC = "sc"
     HDC = "hdc"
+    DC = "dc"
 
 
 class Construction(StrEnum):
@@ -68,9 +67,22 @@ class LoopPlacement(StrEnum):
 
 
 class ComponentKind(StrEnum):
+    """Beanie components (``CROWN``/``BODY``/``BRIM``) plus ``PIECE``.
+
+    ``PIECE`` is one undifferentiated worked piece with no crown/body/brim
+    distinction, used by the written-pattern parser (``parsing/written/``)
+    for generic round-based patterns (amigurumi, swatches) that aren't
+    beanies. The rotational geometry layout treats ``PIECE`` the same as
+    ``BODY`` (a flat vertical stack of rounds, no dome curvature) — a known,
+    documented approximation for shapes like a sphere, where a real
+    crown-and-decrease-symmetric dome treatment would render more
+    accurately. See docs/known-limitations.md.
+    """
+
     CROWN = "crown"
     BODY = "body"
     BRIM = "brim"
+    PIECE = "piece"
 
 
 class ClosureKind(StrEnum):

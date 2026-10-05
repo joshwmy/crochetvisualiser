@@ -1,0 +1,238 @@
+{
+  "$defs": {
+    "ClassificationMethod": {
+      "description": "Which extraction stage produced a symbol's classification.\n\nOrdering below (top to bottom) is the deterministic priority order used\nby ``diagram/extraction.py`` \u2014 never let a later (lower-confidence)\nmethod override an earlier one. See ``CONFIDENCE_BY_METHOD``.",
+      "enum": [
+        "data_attribute",
+        "use_reference",
+        "element_id",
+        "css_class",
+        "title",
+        "aria_label",
+        "text_label",
+        "primitive_geometry",
+        "manual_override",
+        "unclassified"
+      ],
+      "title": "ClassificationMethod",
+      "type": "string"
+    },
+    "DiagramStitchType": {
+      "description": "Bounded first-slice symbol vocabulary. See module docstring for scope.",
+      "enum": [
+        "magic_ring",
+        "chain",
+        "slip_stitch",
+        "single_crochet",
+        "half_double_crochet",
+        "double_crochet",
+        "increase",
+        "decrease",
+        "join"
+      ],
+      "title": "DiagramStitchType",
+      "type": "string"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_symbol.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One extracted-and-classified chart symbol.\n\nSee ``docs/diagram-ir-spec.md`` for the field-by-field rationale;\n``symbol_id`` is derived deterministically from the source element's\npath in the document (never a random UUID) so re-analysing the same SVG\nreproduces identical IDs \u2014 a precondition for corrections keyed by\n``symbol_id`` to remain valid across re-analysis.",
+  "properties": {
+    "ambiguous": {
+      "default": false,
+      "title": "Ambiguous",
+      "type": "boolean"
+    },
+    "anchor": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Anchor",
+      "type": "array"
+    },
+    "bbox": {
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Bbox",
+      "type": "array"
+    },
+    "candidate_stitch_types": {
+      "items": {
+        "$ref": "#/$defs/DiagramStitchType"
+      },
+      "title": "Candidate Stitch Types",
+      "type": "array"
+    },
+    "classification_method": {
+      "$ref": "#/$defs/ClassificationMethod"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "confidence_band": {
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "manual"
+      ],
+      "title": "Confidence Band",
+      "type": "string"
+    },
+    "geometry_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Geometry Fingerprint"
+    },
+    "orientation_deg": {
+      "title": "Orientation Deg",
+      "type": "number"
+    },
+    "position": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Position",
+      "type": "array"
+    },
+    "round_closure": {
+      "default": false,
+      "title": "Round Closure",
+      "type": "boolean"
+    },
+    "round_index": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Round Index"
+    },
+    "round_start": {
+      "default": false,
+      "title": "Round Start",
+      "type": "boolean"
+    },
+    "scale": {
+      "title": "Scale",
+      "type": "number"
+    },
+    "sequence_index": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sequence Index"
+    },
+    "source_element_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Source Element Id"
+    },
+    "source_element_path": {
+      "title": "Source Element Path",
+      "type": "string"
+    },
+    "source_metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Source Metadata",
+      "type": "object"
+    },
+    "stitch_type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiagramStitchType"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "symbol_id": {
+      "title": "Symbol Id",
+      "type": "string"
+    },
+    "unsupported": {
+      "default": false,
+      "title": "Unsupported",
+      "type": "boolean"
+    },
+    "user_override": {
+      "default": false,
+      "title": "User Override",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "symbol_id",
+    "stitch_type",
+    "source_element_id",
+    "source_element_path",
+    "position",
+    "bbox",
+    "anchor",
+    "orientation_deg",
+    "scale",
+    "classification_method",
+    "confidence",
+    "confidence_band"
+  ],
+  "title": "DiagramSymbol",
+  "type": "object",
+  "version": "1.0.0"
+}

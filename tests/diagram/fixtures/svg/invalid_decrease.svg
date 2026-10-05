@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+<g id="ring" data-stitch-type="magic_ring" transform="translate(200.0,200.0)"><circle r="8"/></g>
+<g id="d1s0" data-stitch-type="single_crochet" transform="translate(230.0000,200.0000)"></g>
+<g id="d1s1" data-stitch-type="single_crochet" transform="translate(215.0000,225.9808)"></g>
+<g id="d1s2" data-stitch-type="single_crochet" transform="translate(185.0000,225.9808)"></g>
+<g id="d1s3" data-stitch-type="single_crochet" transform="translate(170.0000,200.0000)"></g>
+<g id="d1s4" data-stitch-type="single_crochet" transform="translate(185.0000,174.0192)"></g>
+<g id="d1s5" data-stitch-type="single_crochet" transform="translate(215.0000,174.0192)"></g>
+<g id="d2s0" data-stitch-type="single_crochet" transform="translate(255.0000,200.0000)"></g>
+<g id="d2s1" data-stitch-type="single_crochet" transform="translate(227.5000,247.6314)"></g>
+<g id="d2s2" data-stitch-type="single_crochet" transform="translate(172.5000,247.6314)"></g>
+<g id="d2s3" data-stitch-type="single_crochet" transform="translate(145.0000,200.0000)"></g>
+<g id="d2s4" data-stitch-type="single_crochet" transform="translate(172.5000,152.3686)"></g>
+<g id="d2s5" data-stitch-type="single_crochet" transform="translate(227.5000,152.3686)"></g>
+<line class="connector" x1="230.0000" y1="200.0000" x2="255.0000" y2="200.0000"/>
+<line class="connector" x1="170.0000" y1="200.0000" x2="255.0000" y2="200.0000"/>
+</svg>

@@ -1,0 +1,149 @@
+"""Assemble a complete :class:`GeometryDocument` from a pattern + stitch graph."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+
+from crochet_reconstruction.domain.gauge import Gauge
+from crochet_reconstruction.domain.rounds import Component
+from crochet_reconstruction.geometry.models import (
+    GaugeAssumptions,
+    GeometryBounds,
+    GeometryDocument,
+    GeometryEdge,
+    GeometryMeasurements,
+    Vec3,
+    YarnSegmentGeometry,
+)
+from crochet_reconstruction.geometry.rotational_rounds import (
+    default_yarn_diameter_cm,
+    place_stitches,
+)
+from crochet_reconstruction.geometry.stitch_heights import stitch_height_warnings
+from crochet_reconstruction.graph.models import StitchGraph
+
+ASSUMPTION_WARNINGS = [
+    "Radius is derived from stitch count and gauge, treating each round as a "
+    "perfect circle; it is not a measurement of a physical object.",
+    "Row height is one round gauge unit, scaled per round by the dominant "
+    "stitch family's height relative to the family the gauge was measured in; "
+    "it does not otherwise vary across crown, body, and brim.",
+    "The crown is modelled as a hemispherical cap for visual continuity, not "
+    "derived from the increase schedule's actual curvature.",
+    "Yarn diameter is a visual default (half a stitch width) unless overridden; "
+    "it is not a measured yarn property.",
+]
+
+
+def _bounds(positions: list[Vec3]) -> GeometryBounds:
+    xs = [p[0] for p in positions]
+    ys = [p[1] for p in positions]
+    zs = [p[2] for p in positions]
+    return GeometryBounds(
+        min=(min(xs), min(ys), min(zs)),
+        max=(max(xs), max(ys), max(zs)),
+    )
+
+
+def _measurements(positions: list[Vec3]) -> GeometryMeasurements:
+    zs = [p[2] for p in positions]
+    radii = [math.hypot(p[0], p[1]) for p in positions]
+    max_radius = max(radii) if radii else 0.0
+    return GeometryMeasurements(
+        overall_height_cm=(max(zs) - min(zs)) if zs else 0.0,
+        max_radius_cm=max_radius,
+        max_circumference_cm=2 * math.pi * max_radius,
+    )
+
+
+def _canonical_json(document: GeometryDocument) -> str:
+    data = document.model_dump(mode="json", exclude={"geometry_fingerprint"})
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def compute_geometry_fingerprint(document: GeometryDocument) -> str:
+    return hashlib.sha256(_canonical_json(document).encode("utf-8")).hexdigest()
+
+
+def build_geometry(
+    components: list[Component],
+    gauge: Gauge,
+    graph: StitchGraph,
+    *,
+    pattern_fingerprint: str | None = None,
+    yarn_diameter_cm: float | None = None,
+) -> GeometryDocument:
+    """Build the complete renderer-ready geometry document.
+
+    Takes ``components``/``gauge`` directly rather than a full ``Pattern``
+    for the same reason as ``graph.builder.build_stitch_graph`` — this
+    module never reads ``Pattern.input``'s beanie-specific fields beyond
+    ``gauge``, or ``Pattern.calculated`` at all. Any caller with a full
+    beanie ``Pattern`` passes ``pattern.components``, ``pattern.input.gauge``,
+    and ``pattern_fingerprint=pattern.fingerprint``.
+
+    ``graph`` must already have passed
+    :func:`crochet_reconstruction.graph.validation.validate_graph` — this
+    function does not re-validate it, matching the pipeline's "validation
+    gates the next stage" structure (compile -> validate -> graph -> validate
+    -> geometry).
+    """
+    stitches_per_cm = float(gauge.stitches_per_cm)
+    rounds_per_cm = float(gauge.rounds_per_cm)
+    resolved_yarn_diameter = yarn_diameter_cm or default_yarn_diameter_cm(stitches_per_cm)
+
+    stitch_geometry_by_id = place_stitches(components, gauge, graph)
+    stitches = [stitch_geometry_by_id[n.stitch_id] for n in graph.nodes]
+    positions = [s.position for s in stitches]
+
+    segments: list[YarnSegmentGeometry] = []
+    for segment in graph.yarn_segments:
+        to_geo = stitch_geometry_by_id[segment.to_stitch_id]
+        control_points: list[Vec3]
+        if segment.from_stitch_id is None:
+            control_points = [to_geo.position, to_geo.position]
+        else:
+            from_geo = stitch_geometry_by_id[segment.from_stitch_id]
+            control_points = [from_geo.position, to_geo.position]
+        segments.append(
+            YarnSegmentGeometry(
+                segment_id=segment.segment_id,
+                owning_stitch_id=segment.owning_stitch_id,
+                from_stitch_id=segment.from_stitch_id,
+                to_stitch_id=segment.to_stitch_id,
+                control_points=control_points,
+                radius_cm=resolved_yarn_diameter / 2,
+                segment_type=segment.segment_type,
+            )
+        )
+
+    edges = [
+        GeometryEdge(
+            edge_id=e.edge_id, edge_type=e.edge_type, source_id=e.source_id, target_id=e.target_id
+        )
+        for e in graph.edges
+    ]
+
+    document = GeometryDocument(
+        pattern_fingerprint=pattern_fingerprint,
+        graph_fingerprint=graph.fingerprint,
+        gauge=GaugeAssumptions(
+            stitches_per_cm=stitches_per_cm,
+            rounds_per_cm=rounds_per_cm,
+            yarn_diameter_cm=resolved_yarn_diameter,
+        ),
+        stitches=stitches,
+        yarn_segments=segments,
+        edges=edges,
+        bounds=_bounds(positions),
+        measurements=_measurements(positions),
+        warnings=(
+            list(ASSUMPTION_WARNINGS)
+            + stitch_height_warnings(components, gauge.stitch_family)
+            + list(graph.warnings)
+        ),
+    )
+    fingerprint = compute_geometry_fingerprint(document)
+    return document.model_copy(update={"geometry_fingerprint": fingerprint})

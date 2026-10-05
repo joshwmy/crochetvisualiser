@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "ConstructionOverrides": {
+      "properties": {
+        "centre": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centre"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "clockwise",
+                "counterclockwise"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direction"
+        },
+        "round_tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Tolerance"
+        },
+        "start_symbol_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Symbol Id"
+        }
+      },
+      "title": "ConstructionOverrides",
+      "type": "object"
+    },
+    "DiagramStitchType": {
+      "description": "Bounded first-slice symbol vocabulary. See module docstring for scope.",
+      "enum": [
+        "magic_ring",
+        "chain",
+        "slip_stitch",
+        "single_crochet",
+        "half_double_crochet",
+        "double_crochet",
+        "increase",
+        "decrease",
+        "join"
+      ],
+      "title": "DiagramStitchType",
+      "type": "string"
+    },
+    "RelationshipOverride": {
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/RelationshipOverrideAction"
+        },
+        "child_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Child Symbol Ids",
+          "type": "array"
+        },
+        "parent_symbol_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Symbol Ids",
+          "type": "array"
+        },
+        "symbol_id": {
+          "title": "Symbol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol_id",
+        "action"
+      ],
+      "title": "RelationshipOverride",
+      "type": "object"
+    },
+    "RelationshipOverrideAction": {
+      "enum": [
+        "set_parent",
+        "remove_parent",
+        "add_parent",
+        "set_children",
+        "confirm",
+        "restore_automatic"
+      ],
+      "title": "RelationshipOverrideAction",
+      "type": "string"
+    },
+    "SymbolOverride": {
+      "properties": {
+        "ignored": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ignored"
+        },
+        "round_closure": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Closure"
+        },
+        "round_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Index"
+        },
+        "round_start": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Start"
+        },
+        "sequence_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Index"
+        },
+        "stitch_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiagramStitchType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SymbolOverride",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_correction_set.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "construction_overrides": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConstructionOverrides"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "relationship_overrides": {
+      "items": {
+        "$ref": "#/$defs/RelationshipOverride"
+      },
+      "title": "Relationship Overrides",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "symbol_overrides": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SymbolOverride"
+      },
+      "title": "Symbol Overrides",
+      "type": "object"
+    }
+  },
+  "title": "DiagramCorrectionSet",
+  "type": "object",
+  "version": "1.0.0"
+}

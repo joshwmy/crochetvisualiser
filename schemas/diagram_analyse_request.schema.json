@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "DiagramAnalyseOptions": {
+      "properties": {
+        "constructionMode": {
+          "const": "circular",
+          "default": "circular",
+          "title": "Constructionmode",
+          "type": "string"
+        },
+        "strict": {
+          "default": false,
+          "title": "Strict",
+          "type": "boolean"
+        }
+      },
+      "title": "DiagramAnalyseOptions",
+      "type": "object"
+    }
+  },
+  "$id": "https://crochet-reconstruction.invalid/schemas/diagram_analyse_request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "options": {
+      "$ref": "#/$defs/DiagramAnalyseOptions",
+      "default": {
+        "constructionMode": "circular",
+        "strict": false
+      }
+    },
+    "svgSource": {
+      "title": "Svgsource",
+      "type": "string"
+    }
+  },
+  "required": [
+    "svgSource"
+  ],
+  "title": "DiagramAnalyseRequest",
+  "type": "object",
+  "version": "1.1.0"
+}
