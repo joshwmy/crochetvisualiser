@@ -16,3 +16,6 @@ tests/
 docs/
 experiments/
 examples/
+# Neither image builds the frontend (it ships as a static GitHub Pages build),
+# so keep its 100+ MB node_modules and build output out of the context.
+viewer/

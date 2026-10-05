@@ -50,6 +50,10 @@ where = ["src"]
 # excludes them by default - without this, a built wheel/Docker image would
 # install a portal package with no templates directory at all.
 "crochet_reconstruction.portal" = ["templates/**/*.html", "static/*"]
+# The Lark grammar is read from disk at parse time; without it every
+# non-editable install (wheel, Docker image) fails each written-pattern
+# compile with FileNotFoundError. tests/test_package_data.py guards this.
+"crochet_reconstruction.parsing.written" = ["grammar.lark"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
