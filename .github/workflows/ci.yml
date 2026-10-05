@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Playwright e2e is deliberately not run here: playwright.config.ts launches
+# the backend from a Windows venv path, and the visual-regression baselines
+# are win32 screenshots. Both would need porting before they could gate a PR.
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -e ".[dev,api]"
+      - run: pytest -q
+
+  viewer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      # The production build, with the Pages base path — catches a broken
+      # base-path guard or a build-only type error.
+      - run: npm run build
+        env:
+          VITE_BASE_PATH: /crochetvisualiser/
+          VITE_API_BASE_URL: https://crochet-visualiser-api.onrender.com
+
+  api-image:
+    # A real non-editable install, the way Render runs it. An editable dev
+    # install reads from src/, which is how grammar.lark once went missing
+    # from the image while every other check passed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f Dockerfile.api -t crochet-visualiser-api:ci .
+      - run: |
+          docker run -d --name api -p 8000:10000 -e PORT=10000 crochet-visualiser-api:ci
+          for i in $(seq 1 30); do curl -sf localhost:8000/healthz && break; sleep 1; done
+          curl -s -X POST localhost:8000/api/visualizer/compile \
+            -H 'Content-Type: application/json' \
+            -d '{"source":"Round 1: 6 sc in magic ring [6]\n"}' > compile.json
+          python3 -c "import json,sys; d=json.load(open('compile.json')); sys.exit(0 if d['success'] else f'compile failed: {d[\"diagnostics\"]}')"
+      - if: failure()
+        run: docker logs api
