@@ -18,8 +18,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: pip install -e ".[dev,api]"
-      - run: pytest -q
+      # portal: the (paused) contributor portal's tests still run, and need
+      # SQLAlchemy/Pillow/Alembic.
+      - run: pip install -e ".[dev,api,portal]"
+      # `python -m` puts the repo root on sys.path, which the tests' own
+      # `from tests.… import` helpers rely on; bare `pytest` does not.
+      - run: python -m pytest -q
 
   viewer:
     runs-on: ubuntu-latest
